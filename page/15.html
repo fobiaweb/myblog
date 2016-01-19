@@ -1,0 +1,167 @@
+---
+layout: page
+title:  "15. Нативный SQL"
+---
+
+
+		<p>Итак, Доктрина умеет выполнять самый настоящий SQL, а затем создавать из результата такого запроса объектную модель. Это очень круто. С помощью класса NativeQuery можно выполнять низкоуровневые запросы SELECT, и отображать их результат на необходимые объекты. Описание того, как именно будет произведено отображение представлено классом ResultSetMapping. Она описывает соответствие полей базы данных полям объекта. Что это дает: можно использовать супер-оптимизированные запросы или хранимые процедуры и при этом не терять преимуществ ORM. Одна из красивейших возможностей Doctrine.</p>
+<blockquote><p>Запросы DELETE, UPDATE or INSERT использовать с помощью NativeSQL API не получится. Для этого подойдет метод <strong>EntityManager#getConnection()</strong>, он вернет ссылку на объект подключение к базе данных, с помощью нее можно вызвать метод executeUpdate().</p></blockquote>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#151_NativeQuery">15.1. Класс NativeQuery</a></li>
+<li>
+<a href="#152_The_ResultSetMapping">15.2. The ResultSetMapping</a><ul>
+<li><a href="#1521_Entity_results">15.2.1. Entity results</a></li>
+<li><a href="#1522_Joined_entity_results">15.2.2. Joined entity results</a></li>
+<li><a href="#1523_Field_results">15.2.3. Field results</a></li>
+<li><a href="#1524_Scalar_results">15.2.4. Scalar results</a></li>
+<li><a href="#1526">15.2.6. Столбец дискриминатора</a></li>
+<li><a href="#1527">15.2.7. Примеры</a></li>
+</ul>
+</li>
+<li><a href="#153_ResultSetMappingBuilder">15.3. ResultSetMappingBuilder</a></li>
+</ul>
+</div>
+<h1><span id="151_NativeQuery">15.1. Класс NativeQuery</span></h1>
+<p>Экземпляр NativeQuery создается с помощью метода <strong>EntityManager#createNativeQuery($sql, $resultSetMapping)</strong>. Он принимает параметра: текста запроса и объект <strong>ResultSetMapping</strong>, который описывает правила отображения результатов.</p>
+<p>После создания экземпляра <strong>NativeQuery</strong>, к нему можно привязать параметры, а затем выполнить.</p>
+<h1><span id="152_The_ResultSetMapping">15.2. The ResultSetMapping</span></h1>
+<p>Понимание класса ResultSetMapping является ключ к успешной работе с NativeQuery. Результат запроса в Doctrine может содержать следующие компоненты:</p>
+<ul>
+<li>
+<strong>Entity results</strong>. Корневые элементы в запросе.</li>
+<li>
+<strong>Joined entity results</strong>. Сущности из связей от вышеприведенных.</li>
+<li>
+<strong>Field results</strong>. Колонка, представляющая собой поле сущности. Она всегда связана или с <strong>entity result</strong> или <strong>joined entity result</strong>.</li>
+<li>
+<strong>Scalar results</strong>. Обычные скалярные значения, они будут находится в каждой строке результата. Если результирующий набор содержит сущности, то после добавления к нему скалярных значений он станет смешанным <strong>(mixed)</strong>.</li>
+<li>
+<strong>Meta results</strong>. Колонки, содержащие мета-информацию, такую как внешние ключи или столбцы дискриминатора. При запросе объектов (getResult()) все мета-столбцы корневых и связанных сущностей должны быть представлены в SQL запросе и соответственно отображены с помощью <strong>ResultSetMapping#addMetaResult</strong>.</li>
+</ul>
+<p><strong>(Далее по тексту эти термины приведены как есть без перевода – прим пер.)</strong></p>
+<blockquote><p>Не будет сюрпризом, что при создании DQL запросов Doctrine внутри себя как раз и использует <strong>ResultSetMapping</strong>. Когда запрос будет разобран синтаксическим анализаторов и преобразован в SQL, Doctrine заполнит ResultSetMapping информацией о том, как запрос должен быть обработан при гидрации.</p></blockquote>
+<p>Ниже будет подробно рассмотрен каждый из описанных выше типов.</p>
+<h2><span id="1521_Entity_results">15.2.1. Entity results</span></h2>
+<p><strong>Entity result</strong> описывает тип сущности, которая будет корневым элементом в результате запроса. Entity result можно добавить с помощью <strong>ResultSetMapping#addEntityResult()</strong>. Сигнатура метода выглядит следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * Добавляет entity result к текущему ResultSetMapping.<br>
+ *<br>
+ * @param string $class Имя класса сущности.<br>
+ * @param string $alias Синоним для класса. Должен быть уникальным среди всех entity<br>
+ *                      results или joined entity results в данном ResultSetMapping.<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> addEntityResult<span class="br0">(</span><span class="re0">$class</span><span class="sy0">,</span> <span class="re0">$alias</span><span class="br0">)</span>
+</div></div>
+<p>Первый параметр это полное имя класса. Второй — синоним, который должен быть уникальным в рамках ResultSetMapping. Этот синоним используется для прикрепления <strong>field results</strong> к соответствующему <strong>entity result</strong>. Это аналоги идентификационной переменной, используемой в DQL в качестве алиаса для классов или связей.</p>
+<p>Но одного entity result недостаточно для формирования корректного ResultSetMapping. Как <strong>entity result</strong> так и <strong>joined entity result</strong> всегда требуют дополнительного набор <strong>field results</strong>, который мы вскоре рассмотрим.</p>
+<h2><span id="1522_Joined_entity_results">15.2.2. Joined entity results</span></h2>
+<p>Этот тип результата описывает связь, в результате запроса она будет связана собственно с элементом <strong>entity result</strong>. Этот типа можно добавить с помощью метода <strong>ResultSetMapping#addJoinedEntityResult()</strong>. Сигнатура методы выглядит так:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * Добавляет joined entity result.<br>
+ *<br>
+ * @param string $class Имя класса данной joined entity.<br>
+ * @param string $alias Алиас.<br>
+ * @param string $parentAlias Алиас для родительской entity result.<br>
+ * @param object $relation Имя связи, соединяющей родительский entity result с joined entity result.<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> addJoinedEntityResult<span class="br0">(</span><span class="re0">$class</span><span class="sy0">,</span> <span class="re0">$alias</span><span class="sy0">,</span> <span class="re0">$parentAlias</span><span class="sy0">,</span> <span class="re0">$relation</span><span class="br0">)</span>
+</div></div>
+<p>Первый параметр это просто имя класса связанной сущности. Второй — уникальный синоним, он будет нужен для подключения <strong>field results</strong>. Третий параметр это алиас родительской <strong>entity result</strong> для данной связи. Последним параметром задается имя поля родительского <strong>entity result</strong>, которое и будет являться ссылкой на связь.</p>
+<h2><span id="1523_Field_results">15.2.3. Field results</span></h2>
+<p>Тут все просто: <strong>field result</strong> описывает какому полю сущности соответствует тот или иной столбец результата SQL запроса. Таким образом, этот тип связан с <strong>entity results</strong>. Добавляется он с помощью метода <strong>ResultSetMapping#addFieldResult()</strong>.  Сигнатурам метода:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * Добавляет field result к entity result или joined entity result.<br>
+ *<br>
+ * @param string $alias Алиас entity result или joined entity result, к которому будет добавлено поле.<br>
+ * @param string $columnName Имя колонки в результирующем набора SQL запроса.<br>
+ * @param string $fieldName Имя поле сущности.<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> addFieldResult<span class="br0">(</span><span class="re0">$alias</span><span class="sy0">,</span> <span class="re0">$columnName</span><span class="sy0">,</span> <span class="re0">$fieldName</span><span class="br0">)</span>
+</div></div>
+<p>Первый параметр это алиаса для <strong>entity result</strong>, к которому будет привязано данный <strong>field result</strong>. Второй параметр это имя столбца из SQL запроса. Имейте ввиду, что имя столбца зависит от регистра. Последний параметр это имя поля, которому и будет назначено соответствие.</p>
+<h2><span id="1524_Scalar_results">15.2.4. Scalar results</span></h2>
+<p>Тип scalar result описывает соответствие колонки из SQL запроса скалярному значению в результате Doctrine. Обычно скалярные результаты используются для хранения результатов агрегатных функций, тем не менее сюда можно назначить абсолютно любой столбец. Добавляется с помощью метода <strong>ResultSetMapping#addScalarResult()</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * Добавляет соответствие для scalar result.<br>
+ *<br>
+ * @param string $columnName Имя колонки в результирующем наборе SQL запроса.<br>
+ * @param string $alias Синоним под которым значение этой колонки будет хранится в итоговом результирующем наборе.<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> addScalarResult<span class="br0">(</span><span class="re0">$columnName</span><span class="sy0">,</span> <span class="re0">$alias</span><span class="br0">)</span>
+</div></div>
+<p>15.2.5. Meta results</p>
+<p>Meta result описывает единственный столбец в результирующем наборе SQL запроса, который может быть внешним ключом или столбцом дискриминатора. Эти колонки имеют фундаментальное значение для Doctrine, т.к. с их помощью происходит создание объектов из результатов SQL запроса (гидрация, мать ее так.). Для добавления используется метод <strong>ResultSetMapping#addMetaResult()</strong>, имеющий следующую сигнатуру:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * Добавляет внешний ключ или столбец дискриминатора.<br>
+ *<br>
+ * @param string $alias<br>
+ * @param string $columnAlias<br>
+ * @param string $columnName<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> addMetaResult<span class="br0">(</span><span class="re0">$alias</span><span class="sy0">,</span> <span class="re0">$columnAlias</span><span class="sy0">,</span> <span class="re0">$columnName</span><span class="br0">)</span>
+</div></div>
+<p>Первый параметр это алиас <strong>entity result</strong>, которой этот столбец соответствует. Столбец с мета-информацией (внешний ключ или столбец дискриминатора) всегда указывает на entity result. Второй параметр это имя или алиас столбца из SQL запроса. Третий параметр это имя используемой для отображения колонки.</p>
+<h2><span id="1526">15.2.6. Столбец дискриминатора</span></h2>
+<p>При подключении дерева наследования Doctrine нужно дать подсказку по поводу того, какая meta-column в этом дереве является столбцом дискриминатора.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="co4">/**<br>
+ * Sets a discriminator column for an entity result or joined entity result.<br>
+ * The discriminator column will be used to determine the concrete class name to<br>
+ * instantiate.<br>
+ *<br>
+ * @param string $alias The alias of the entity result or joined entity result the discriminator<br>
+ *                      column should be used for.<br>
+ * @param string $discrColumn The name of the discriminator column in the SQL result set.<br>
+ */</span><br><span class="kw2">public</span> <span class="kw2">function</span> setDiscriminatorColumn<span class="br0">(</span><span class="re0">$alias</span><span class="sy0">,</span> <span class="re0">$discrColumn</span><span class="br0">)</span>
+</div></div>
+<h2><span id="1527">15.2.7. Примеры</span></h2>
+<p>Чтобы лучше понять как работает <strong>ResultSetMapping</strong> давайте разберем несколько примеров.</p>
+<p>Первый пример описывает отображение для одной сущности.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Эквивалентный DQL запрос: "select u from User u where u.name=?1"</span><br><span class="co1">// User не имеет связей.</span><br><span class="re0">$rsm</span> <span class="sy0">=</span> <span class="kw2">new</span> ResultSetMapping<span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addEntityResult</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createNativeQuery</span><span class="br0">(</span><span class="st_h">'SELECT id, name FROM users WHERE name = ?'</span><span class="sy0">,</span> <span class="re0">$rsm</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Результат запроса будет выглядеть следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw3">array</span><span class="br0">(</span><br>
+    <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> User <span class="br0">(</span>Object<span class="br0">)</span><br><span class="br0">)</span>
+</div></div>
+<p>Обратите внимание, если сущность имеет больше полей, чем представлено в примере выше, то сформированный объект будет являться неполным. Что такое неполные объекты будет описано в 17 главе. Строка, передаваемая методу <strong>createNativeQuery</strong> есть не что иное как нативный SQL запрос, он будет выполнен как есть без каких-либо преобразований со стороны Doctrine.</p>
+<p>В предыдущем примере User не имел никаких связей, поэтому таблица была задействована без внешний ключей. В следующем примере предполагается, что User имеет одностороннюю или двустороннюю связь “один к одному” с сущностью CmsAddress, где User является владеющей стороной с внешним ключом.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Эквивалентный DQL Запрос: "select u from User u where u.name=?1"</span><br><span class="co1">// User владеет связью Address, но Address не будет загружен запросом.</span><br><span class="re0">$rsm</span> <span class="sy0">=</span> <span class="kw2">new</span> ResultSetMapping<span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addEntityResult</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addMetaResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'address_id'</span><span class="sy0">,</span> <span class="st_h">'address_id'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createNativeQuery</span><span class="br0">(</span><span class="st_h">'SELECT id, name, address_id FROM users WHERE name = ?'</span><span class="sy0">,</span> <span class="re0">$rsm</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Внешние ключи используются Доктриной для ленивой загрузки. П вышеприведенном примере у каждого объекта User в результирующем набор будет свой прокси-объект представляющий Address (ключ address_id). И при запросе этого прокси произойдет фактическая загрузка объекта, представленного этим ключом.</p>
+<p>Следовательно, для fetch-joined связи не обязательно иметь внешний ключи в SQL запросе, это нужно только для lazy-loading связей.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Эквивалентный DQL запрос: "select u from User u join u.address a WHERE u.name = ?1"</span><br><span class="co1">// User владеет связью Address, которая будет загружена запросом.</span><br><span class="re0">$rsm</span> <span class="sy0">=</span> <span class="kw2">new</span> ResultSetMapping<span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addEntityResult</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addJoinedEntityResult</span><span class="br0">(</span><span class="st_h">'Address'</span> <span class="sy0">,</span> <span class="st_h">'a'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'address'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'a'</span><span class="sy0">,</span> <span class="st_h">'address_id'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'a'</span><span class="sy0">,</span> <span class="st_h">'street'</span><span class="sy0">,</span> <span class="st_h">'street'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'a'</span><span class="sy0">,</span> <span class="st_h">'city'</span><span class="sy0">,</span> <span class="st_h">'city'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$sql</span> <span class="sy0">=</span> <span class="st_h">'SELECT u.id, u.name, a.id AS address_id, a.street, a.city FROM users u '</span> <span class="sy0">.</span><br>
+       <span class="st_h">'INNER JOIN address a ON u.address_id = a.id WHERE u.name = ?'</span><span class="sy0">;</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createNativeQuery</span><span class="br0">(</span><span class="re0">$sql</span><span class="sy0">,</span> <span class="re0">$rsm</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В этом примере вложенная сущность Address регистрируется с помощью метода <strong>ResultSetMapping#addJoinedEntityResult</strong>, который уведомляет Doctrine о том, что эта сущность не будет находится на нижнем уровне в наборе, а будет представлена как joined-сущность и располагаться где-то внутри графа объектов. В этом случае третьим параметром мы указываем алиас  ‘u’ и “address” четвертым параметром, это означает, что Address будет соответствовать полю User::$address property.</p>
+<p>Если связанная сущность является частью иерархии наследования, которой нужен столбец дискриминатора, то этот столбец должен присутствовать в результирующем наборе в виде мета-столбца. Эта ситуация представлена в следующем примере, здесь предполагается, что у User есть один или несколько подклассов и для отображения иерархии используется Class Table Inheritance или Single Table Inheritance (в обоих случаях используется столбец дискриминатора).</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Эквивалентный DQL запрос: "select u from User u where u.name=?1"</span><br><span class="co1">// User является базовым классом. У User нет связей.</span><br><span class="re0">$rsm</span> <span class="sy0">=</span> <span class="kw2">new</span> ResultSetMapping<span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addEntityResult</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="sy0">,</span> <span class="st_h">'id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addFieldResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'name'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addMetaResult</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'discr'</span><span class="sy0">,</span> <span class="st_h">'discr'</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// discriminator column</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">setDiscriminatorColumn</span><span class="br0">(</span><span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'discr'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createNativeQuery</span><span class="br0">(</span><span class="st_h">'SELECT id, name, discr FROM users WHERE name = ?'</span><span class="sy0">,</span> <span class="re0">$rsm</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В случае Class Table Inheritance пример выше породит неполные объекты в случае если любые объекты в результирующем набор являются подтипами User. При использовании DQL, Doctrine автоматически подключает необходимые связи, при использовании нативного SQL это ваша ответственность.</p>
+<h1><span id="153_ResultSetMappingBuilder">15.3. ResultSetMappingBuilder</span></h1>
+<p>У запросов, создаваемый с помощью нативного SQL есть минусы. Основной минус заключается в том, что при изменении имен колонок нужно будет править правила отображения. В DQL это происходит автоматически.</p>
+<p>Чтобы избежать этих проблем есть специальный класс <strong>ResultSetMappingBuilder</strong>. Он позволяет добавить все колонки заданной сущности в правила отображения. Чтобы избежать конфликтов можно переименовать необходимые колонки как в примере ниже:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="re0">$sql</span> <span class="sy0">=</span> <span class="st0">"SELECT u.id, u.name, a.id AS address_id, a.street, a.city "</span> <span class="sy0">.</span><br>
+       <span class="st0">"FROM users u INNER JOIN address a ON u.address_id = a.id"</span><span class="sy0">;</span><br><br><span class="re0">$rsm</span> <span class="sy0">=</span> <span class="kw2">new</span> ResultSetMappingBuilder<span class="br0">(</span><span class="re0">$em</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addRootEntityFromClassMetadata</span><span class="br0">(</span><span class="st_h">'MyProject\User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$rsm</span><span class="sy0">-&gt;</span><span class="me1">addJoinedEntityFromClassMetadata</span><span class="br0">(</span><span class="st_h">'MyProject\Address'</span><span class="sy0">,</span> <span class="st_h">'a'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="sy0">,</span> <span class="st_h">'address'</span><span class="sy0">,</span> <span class="kw3">array</span><span class="br0">(</span><span class="st_h">'id'</span> <span class="sy0">=&gt;</span> <span class="st_h">'address_id'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Для сущностей с множеством полей использование билдера весьма удобно. Он наследует класс <strong>ResultSetMapping</strong> и имеет ту же функциональностьl. В настоящий момент <strong>ResultSetMappingBuilder</strong> не умеет работать с наследованием классов сущностей.</p>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_64790556"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/14/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/16/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

@@ -1,0 +1,301 @@
+---
+layout: page
+title:  "14. Создание запросов с помощью QueryBuilder"
+---
+
+
+		<p>QueryBuilder — это API, который позволяет в несколько шагов создать практически любой DQL запрос.</p>
+<p>В составе QueryBuilder входит набор классов и методов для программного построения запросов и весьма гибкий API. Использовать ли построитель или писать запросы вручную решать вам.</p>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#141__QueryBuilder">14.1. Создание объекта QueryBuilder</a></li>
+<li>
+<a href="#142__QueryBuilder">14.2. Работа с QueryBuilder</a><ul>
+<li><a href="#1421">14.2.1. Параметры</a></li>
+<li><a href="#1422">14.2.2. Ограничения</a></li>
+<li><a href="#1423">14.2.3. Выполнение запроса</a></li>
+<li><a href="#1424_Expr">14.2.4. Классы Expr*</a></li>
+<li><a href="#1425_Expr">14.2.5. Класс Expr</a></li>
+<li><a href="#1426">14.2.6. Вспомогательные методы</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1><span id="141__QueryBuilder">14.1. Создание объекта QueryBuilder</span></h1>
+<p>Точно так же как вы создавали обычный запрос, создается и объект QueryBuilder. Сразу пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em — экземпляр EntityManager</span><br><br><span class="co1">// Пример 1: создание экземпляра QueryBuilder</span><br><span class="re0">$qb</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQueryBuilder</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Экземпляр QueryBuilder имеет набор функций, названия которых говорят сами за себя. Так, например, можно узнать тип объекта QueryBuilder:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 2: retrieving type of QueryBuilder</span><br><span class="kw1">echo</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="kw3">getType</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Выведет: 0</span>
+</div></div>
+<p>Объект может иметь один из трех возможных типов:</p>
+<ul>
+<li>
+<strong>QueryBuilder::SELECT</strong>, which returns value 0</li>
+<li>
+<strong>QueryBuilder::DELETE</strong>, returning value 1</li>
+<li>
+<strong>QueryBuilder::UPDATE</strong>, which returns value 2</li>
+</ul>
+<p>После того как запрос построен можно получить экземпляр менеджера сущностей, текст DQL запроса и сам объект этого запроса:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 3: получение экземпляра EntityManager</span><br><span class="re0">$em</span> <span class="sy0">=</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getEntityManager</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Пример 4: получение текста DQL запроса, представленного экземпляром QueryBuilder</span><br><span class="re0">$dql</span> <span class="sy0">=</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getDql</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Пример 5: получение экземпляра объекта Query</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getQuery</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Для увеличения производительности в QueryBuilder используется кеш DQL. Любое вносимое в объект запроса изменение, которое может повлиять на текст результирующего запроса переводит QueryBuilder в состояние, которое мы называем <strong>STATE_DIRTY</strong>. Итого, любой экземпляр QueryBuilder может находиться в одном из двух состояний:</p>
+<ul>
+<li>
+<strong>QueryBuilder::STATE_CLEAN</strong> означает, что DQL запрос находится в актуальном состоянии, объект принимает это состояние сразу после создания</li>
+<li>
+<strong>QueryBuilder::STATE_DIRTY</strong> означает, что DQL запрос был изменен и должен быть перестроен</li>
+</ul>
+<h1><span id="142__QueryBuilder">14.2. Работа с QueryBuilder</span></h1>
+<p>Все вспомогательные методы объекта QueryBuilder являются сокращениями для метода <strong>add()</strong>, который и отвечает за построение DQL запроса. Он принимает три параметра: <strong>$dqlPartName</strong>, <strong>$dqlPart</strong> и <strong>$append</strong> (по умолчанию равен <em>false</em>)</p>
+<ul>
+<li>
+<strong>$dqlPartName</strong>: Определяет место, в котором будет размещен <strong>$dqlPart</strong>. Возможные значения: select, from, where, groupBy, having, orderBy</li>
+<li>
+<strong>$dqlPart</strong>: Что должно быть размещено в <strong>$dqlPartName</strong>. Принимает строку или любой экземпляр <em>Doctrine\ORM\Query\Expr\*</em>
+</li>
+<li>
+<strong>$append</strong>: Необязательный аргумент (по умолчанию равен <em>false</em>) должен ли <strong>$dqlPart</strong> переопределять все заданные до этого элементы в <strong>$dqlPartName</strong>
+</li>
+</ul>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 6: создание запроса "SELECT u FROM User u WHERE u.id = ? ORDER BY u.name ASC" с помощью QueryBuilder</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="st_h">'User u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'where'</span><span class="sy0">,</span> <span class="st_h">'u.id = ?1'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="st_h">'u.name ASC'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1421">14.2.1. Параметры</span></h2>
+<p>В Doctrine есть возможность привязки параметров к объекту построителя, подобно тому как это делалось при ручном написании запросов (см. предыдущую главу). Можно использовать как строковые так и цифровые метки, хотя синтаксис их немного отличается. Так или иначе, нужно выбрать что-то одно: не допускается смешивать оба стиля. Привязать параметры можно следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb - экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 6: определяем запрос: "SELECT u FROM User u WHERE u.id = ? ORDER BY u.name ASC" с помощью QueryBuilder</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="st_h">'User u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'where'</span><span class="sy0">,</span> <span class="st_h">'u.id = ?1'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="st_h">'u.name ASC'</span><span class="br0">)</span><span class="sy0">;</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">100</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Устанавливает параметр ?1 в 100, т.о. будет запрошен пользователь, имеющий u.id = 100</span>
+</div></div>
+<p>Не обязательно использовать именно цифровые параметры, есть и другой способ:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 6: определяем запрос: "SELECT u FROM User u WHERE u.id = ? ORDER BY u.name ASC" с помощью QueryBuilder</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="st_h">'User u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'where'</span><span class="sy0">,</span> <span class="st_h">'u.id = :identifier'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="st_h">'u.name ASC'</span><span class="br0">)</span><span class="sy0">;</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="st_h">'identifier'</span><span class="sy0">,</span> <span class="nu0">100</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Устанавливает параметр :identifier в 100, т.о. будет запрошен пользователь с u.id = 100</span>
+</div></div>
+<p>Обратите внимание на то, что имена цифровых параметров начинаются со знака `<strong>?</strong>`, за которым следует число, а именованных со знака `<strong>:</strong>`, за которым следует имя.</p>
+<p>Для привязки сразу нескольких параметров можно использовать метод <strong>setParameters()</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Query here...</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">setParameters</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="nu0">1</span> <span class="sy0">=&gt;</span> <span class="st_h">'value for ?1'</span><span class="sy0">,</span> <span class="nu0">2</span> <span class="sy0">=&gt;</span> <span class="st_h">'value for ?2'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Привязанные ранее параметры можно получить с помощью методов “<strong>getParameter()</strong>” или “<strong>getParameters()</strong>”:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Первый способ</span><br><span class="re0">$params</span> <span class="sy0">=</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getParameters</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">2</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="co1">// Второй способ</span><br><span class="re0">$param</span>  <span class="sy0">=</span> <span class="kw3">array</span><span class="br0">(</span><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="br0">)</span><span class="sy0">,</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getParameter</span><span class="br0">(</span><span class="nu0">2</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>При попытка обращения к несуществующему параметру метод <strong>getParameter()</strong> вернет <span style="color: #33cccc;"><del>хуй</del></span> NULL.</p>
+<h2><span id="1422">14.2.2. Ограничения</span></h2>
+<p>Для наложения ограничений на результат запроса можно использовать методы, аналогичные используемым в объекте Query, который можно получит с помощью метода <strong>EntityManager#createQuery()</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb - экземпляр QueryBuilder</span><br><span class="re0">$offset</span> <span class="sy0">=</span> <span class="br0">(</span>int<span class="br0">)</span><span class="re0">$_GET</span><span class="br0">[</span><span class="st_h">'offset'</span><span class="br0">]</span><span class="sy0">;</span><br><span class="re0">$limit</span> <span class="sy0">=</span> <span class="br0">(</span>int<span class="br0">)</span><span class="re0">$_GET</span><span class="br0">[</span><span class="st_h">'limit'</span><span class="br0">]</span><span class="sy0">;</span><br><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="st_h">'User u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="st_h">'u.name ASC'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">setFirstResult</span><span class="br0">(</span> <span class="re0">$offset</span> <span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">setMaxResults</span><span class="br0">(</span> <span class="re0">$limit</span> <span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1423">14.2.3. Выполнение запроса</span></h2>
+<p>QueryBuilder всего лишь строит объект, это вовсе не означает выполнение получившегося запроса. Кроме того, такие вещи как, например, подсказки нельзя задать непосредственно в самом билдере, для этого сначала нужно получить объект Query:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">getQuery</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Установка дополнительных параметров</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setQueryHint</span><span class="br0">(</span><span class="st_h">'foo'</span><span class="sy0">,</span> <span class="st_h">'bar'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">useResultCache</span><span class="br0">(</span><span class="st_h">'my_cache_id'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Выполнение запроса</span><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$single</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getSingleResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$array</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getArrayResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$scalar</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getScalarResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$singleScalar</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getSingleScalarResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1424_Expr">14.2.4. Классы Expr*</span></h2>
+<p>Когда вы вызываете метод add(), передавая ему строковой параметр, в действительность происходит создание экземпляра класса <strong>Doctrine\ORM\Query\Expr\Expr\*</strong>. Следующий пример демонстрирует это:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Приер 7: задаем запрос: "SELECT u FROM User u WHERE u.id = ? ORDER BY u.name ASC" с помощью QueryBuilder, используя экземпляры Expr\*</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\Select<span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'u'</span><span class="br0">)</span><span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\From<span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'where'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\Comparison<span class="br0">(</span><span class="st_h">'u.id'</span><span class="sy0">,</span> <span class="st_h">'='</span><span class="sy0">,</span> <span class="st_h">'?1'</span><span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\OrderBy<span class="br0">(</span><span class="st_h">'u.name'</span><span class="sy0">,</span> <span class="st_h">'ASC'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Конечно, нифига не удобно строить запросы таким хитржопым способом. Поэтому для упрощения есть специальный вспомогательный класс Expr.</p>
+<h2><span id="1425_Expr">14.2.5. Класс Expr</span></h2>
+<p>Чтобы обойти различного рода проблемы при использовании метода <strong>add()</strong> в Doctrine есть вспомогательный класс для построения выражений — Expr, для этих целей он содержит ряд полезных методов:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 8: QueryBuilder-реализация запроса "SELECT u FROM User u WHERE u.id = ? OR u.nickname LIKE ? ORDER BY u.surname DESC" с использованием класса Expr</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'select'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\Select<span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'u'</span><span class="br0">)</span><span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'from'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\From<span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'where'</span><span class="sy0">,</span> <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">orX</span><span class="br0">(</span><br>
+       <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">eq</span><span class="br0">(</span><span class="st_h">'u.id'</span><span class="sy0">,</span> <span class="st_h">'?1'</span><span class="br0">)</span><span class="sy0">,</span><br>
+       <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">like</span><span class="br0">(</span><span class="st_h">'u.nickname'</span><span class="sy0">,</span> <span class="st_h">'?2'</span><span class="br0">)</span><br>
+   <span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="st_h">'orderBy'</span><span class="sy0">,</span> <span class="kw2">new</span> Expr\OrderBy<span class="br0">(</span><span class="st_h">'u.name'</span><span class="sy0">,</span> <span class="st_h">'ASC'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Да, выглядит это все еще громоздко, но в этом и есть основная фича класса Expr — дать возможность программно создавать условные выражения. Полный список методов этого класса приведен ниже:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> Expr<br><span class="br0">{</span><br>
+    <span class="co4">/** Условия **/</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;andX($cond1 [, $condN])-&gt;add(...)-&gt;...</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> andX<span class="br0">(</span><span class="re0">$x</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\AndX instance</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;orX($cond1 [, $condN])-&gt;add(...)-&gt;...</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> orX<span class="br0">(</span><span class="re0">$x</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\OrX instance</span><br><br>
+    <span class="co4">/** Сравнение **/</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;eq('u.id', '?1') =&gt; u.id = ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> eq<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;neq('u.id', '?1') =&gt; u.id &lt;&gt; ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> neq<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;lt('u.id', '?1') =&gt; u.id &lt; ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> lt<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;lte('u.id', '?1') =&gt; u.id &lt;= ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> lte<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;gt('u.id', '?1') =&gt; u.id &gt; ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> gt<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;gte('u.id', '?1') =&gt; u.id &gt;= ?1</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> gte<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;isNull('u.id') =&gt; u.id IS NULL</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> isNull<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает строку</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;isNotNull('u.id') =&gt; u.id IS NOT NULL</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> isNotNull<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает строку</span><br><br>
+    <span class="co4">/** Арифметика **/</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;prod('u.id', '2') =&gt; u.id * 2</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> prod<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Math</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;diff('u.id', '2') =&gt; u.id - 2</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> diff<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Math</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;sum('u.id', '2') =&gt; u.id + 2</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> sum<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Math</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;quot('u.id', '2') =&gt; u.id / 2</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> quot<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Math</span><br><br>
+    <span class="co4">/** Псевдо-функции **/</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;exists($qb2-&gt;getDql())</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> exists<span class="br0">(</span><span class="re0">$subquery</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;all($qb2-&gt;getDql())</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> all<span class="br0">(</span><span class="re0">$subquery</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;some($qb2-&gt;getDql())</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> some<span class="br0">(</span><span class="re0">$subquery</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;any($qb2-&gt;getDql())</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> any<span class="br0">(</span><span class="re0">$subquery</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;not($qb-&gt;expr()-&gt;eq('u.id', '?1'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> not<span class="br0">(</span><span class="re0">$restriction</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;in('u.id', array(1, 2, 3))</span><br>
+    <span class="co1">// Нельзя вставлять значения напрямую: $qb-&gt;expr()-&gt;in('value', array('stringvalue')), это приведет к выбросу исключения.</span><br>
+    <span class="co1">// Вместо этого используйте параметризацию: $qb-&gt;expr()-&gt;in('value', array('?1')), затем назначьте параметр ?1 (см. предыдущий раздел)</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> in<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;notIn('u.id', '2')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> notIn<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;like('u.firstname', $qb-&gt;expr()-&gt;literal('Gui%'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> like<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Comparison</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;between('u.id', '1', '10')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> between<span class="br0">(</span><span class="re0">$val</span><span class="sy0">,</span> <span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co4">/** Функции **/</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;trim('u.firstname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">trim</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;concat('u.firstname', $qb-&gt;expr()-&gt;concat(' ', 'u.lastname'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> concat<span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$y</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример- $qb-&gt;expr()-&gt;substr('u.firstname', 0, 1)</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">substr</span><span class="br0">(</span><span class="re0">$x</span><span class="sy0">,</span> <span class="re0">$from</span><span class="sy0">,</span> <span class="re0">$len</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;lower('u.firstname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> lower<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;upper('u.firstname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> upper<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;length('u.firstname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> length<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;avg('u.age')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> avg<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;max('u.age')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">max</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;min('u.age')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">min</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;abs('u.currentBalance')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">abs</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;sqrt('u.currentBalance')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">sqrt</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;count('u.firstname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> <span class="kw3">count</span><span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;expr()-&gt;countDistinct('u.surname')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> countDistinct<span class="br0">(</span><span class="re0">$x</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Возвращает экземпляр Expr\Func</span><br><span class="br0">}</span>
+</div></div>
+<h2><span id="1426">14.2.6. Вспомогательные методы</span></h2>
+<p>До текущего момента запросы создавались самым сложным низкоуровневым способом. Безусловно, когда дело касается оптимизации это полезно, но в большинстве случаев рекомендуется использовать готовые абстракции. Итак, чтобы сделать построение запросов еще проще можно воспользоваться преимуществом Helper-методов. Давайте рассмотрим их, ниже приведен Пример 6, переписанный с использованием хелперов класса QueryBuilder:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 9: создание запроса "SELECT u FROM User u WHERE u.id = ?1 ORDER BY u.name ASC" с использованием псмомогательных методов</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">select</span><span class="br0">(</span><span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">from</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">where</span><span class="br0">(</span><span class="st_h">'u.id = ?1'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">orderBy</span><span class="br0">(</span><span class="st_h">'u.name'</span><span class="sy0">,</span> <span class="st_h">'ASC'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Хелперы — это стандартный способ создания запросов. Вообще говоря, старайтесь избегать ручного написания запросов с помощью строк и не слишком вдохновляйтесь методами <strong>$qb-&gt;expr()-&gt;*</strong>. Ниже приведен рефакторинг Примера 8 с использованием описанной парадигмы:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $qb — экземпляр QueryBuilder</span><br><br><span class="co1">// Пример 8: QueryBuilder-аналог запроса "SELECT u FROM User u WHERE u.id = ?1 OR u.nickname LIKE ?2 ORDER BY u.surname DESC" с использованием хелперов</span><br><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">select</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'u'</span><span class="br0">)</span><span class="br0">)</span> <span class="co1">// строка 'u' будет самостоятельно конвертирована в массив</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">from</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="st_h">'u'</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">where</span><span class="br0">(</span><span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">orX</span><span class="br0">(</span><br>
+       <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">eq</span><span class="br0">(</span><span class="st_h">'u.id'</span><span class="sy0">,</span> <span class="st_h">'?1'</span><span class="br0">)</span><span class="sy0">,</span><br>
+       <span class="re0">$qb</span><span class="sy0">-&gt;</span><span class="me1">expr</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">like</span><span class="br0">(</span><span class="st_h">'u.nickname'</span><span class="sy0">,</span> <span class="st_h">'?2'</span><span class="br0">)</span><br>
+   <span class="br0">)</span><span class="br0">)</span><br>
+   <span class="sy0">-&gt;</span><span class="me1">orderBy</span><span class="br0">(</span><span class="st_h">'u.surname'</span><span class="sy0">,</span> <span class="st_h">'ASC'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Полный список полезных вспомогательных методов класса QueryBuilder:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> QueryBuilder<br><span class="br0">{</span><br>
+    <span class="co1">// Пример — $qb-&gt;select('u')</span><br>
+    <span class="co1">// Пример — $qb-&gt;select(array('u', 'p'))</span><br>
+    <span class="co1">// Пример — $qb-&gt;select($qb-&gt;expr()-&gt;select('u', 'p'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> select<span class="br0">(</span><span class="re0">$select</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;delete('User', 'u')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> delete<span class="br0">(</span><span class="re0">$delete</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$alias</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;update('Group', 'g')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> update<span class="br0">(</span><span class="re0">$update</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$alias</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;set('u.firstName', $qb-&gt;expr()-&gt;literal('Arnold'))</span><br>
+    <span class="co1">// Пример — $qb-&gt;set('u.numChilds', 'u.numChilds + ?1')</span><br>
+    <span class="co1">// Пример — $qb-&gt;set('u.numChilds', $qb-&gt;expr()-&gt;sum('u.numChilds', '?1'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> set<span class="br0">(</span><span class="re0">$key</span><span class="sy0">,</span> <span class="re0">$value</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;from('Phonenumber', 'p')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> from<span class="br0">(</span><span class="re0">$from</span><span class="sy0">,</span> <span class="re0">$alias</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;innerJoin('u.Group', 'g', Expr\Join::WITH, $qb-&gt;expr()-&gt;eq('u.status_id', '?1'))</span><br>
+    <span class="co1">// Пример — $qb-&gt;innerJoin('u.Group', 'g', 'WITH', 'u.status = ?1')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> innerJoin<span class="br0">(</span><span class="re0">$join</span><span class="sy0">,</span> <span class="re0">$alias</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$conditionType</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$condition</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;leftJoin('u.Phonenumbers', 'p', Expr\Join::WITH, $qb-&gt;expr()-&gt;eq('p.area_code', 55))</span><br>
+    <span class="co1">// Пример — $qb-&gt;leftJoin('u.Phonenumbers', 'p', 'WITH', 'p.area_code = 55')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> leftJoin<span class="br0">(</span><span class="re0">$join</span><span class="sy0">,</span> <span class="re0">$alias</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$conditionType</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="sy0">,</span> <span class="re0">$condition</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Важно: -&gt;where() затирает заданные ранее условия</span><br>
+    <span class="co1">//</span><br>
+    <span class="co1">// Пример — $qb-&gt;where('u.firstName = ?1', $qb-&gt;expr()-&gt;eq('u.surname', '?2'))</span><br>
+    <span class="co1">// Пример — $qb-&gt;where($qb-&gt;expr()-&gt;andX($qb-&gt;expr()-&gt;eq('u.firstName', '?1'), $qb-&gt;expr()-&gt;eq('u.surname', '?2')))</span><br>
+    <span class="co1">// Пример — $qb-&gt;where('u.firstName = ?1 AND u.surname = ?2')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> where<span class="br0">(</span><span class="re0">$where</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;andWhere($qb-&gt;expr()-&gt;orX($qb-&gt;expr()-&gt;lte('u.age', 40), 'u.numChild = 0'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> andWhere<span class="br0">(</span><span class="re0">$where</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;orWhere($qb-&gt;expr()-&gt;between('u.id', 1, 10));</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> orWhere<span class="br0">(</span><span class="re0">$where</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Важно: -&gt; groupBy() затирает заданные ранее схемы группировки</span><br>
+    <span class="co1">//</span><br>
+    <span class="co1">// Пример — $qb-&gt;groupBy('u.id')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> groupBy<span class="br0">(</span><span class="re0">$groupBy</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;addGroupBy('g.name')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addGroupBy<span class="br0">(</span><span class="re0">$groupBy</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Важно: -&gt; having() также затирает все ранее заданные им условия</span><br>
+    <span class="co1">//</span><br>
+    <span class="co1">// Пример — $qb-&gt;having('u.salary &gt;= ?1')</span><br>
+    <span class="co1">// Пример — $qb-&gt;having($qb-&gt;expr()-&gt;gte('u.salary', '?1'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> having<span class="br0">(</span><span class="re0">$having</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример- $qb-&gt;andHaving($qb-&gt;expr()-&gt;gt($qb-&gt;expr()-&gt;count('u.numChild'), 0))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> andHaving<span class="br0">(</span><span class="re0">$having</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример — $qb-&gt;orHaving($qb-&gt;expr()-&gt;lte('g.managerLevel', '100'))</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> orHaving<span class="br0">(</span><span class="re0">$having</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Важно: -&gt; orderBy() затирает ранее заданные правила сортировки</span><br>
+    <span class="co1">//</span><br>
+    <span class="co1">// Пример- $qb-&gt;orderBy('u.surname', 'DESC')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> orderBy<span class="br0">(</span><span class="re0">$sort</span><span class="sy0">,</span> <span class="re0">$order</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="co1">// Пример- $qb-&gt;addOrderBy('u.firstName')</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addOrderBy<span class="br0">(</span><span class="re0">$sort</span><span class="sy0">,</span> <span class="re0">$order</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// По умолчанию $order = 'ASC'</span><br><span class="br0">}</span>
+</div></div>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_89698774"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/13/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/15/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

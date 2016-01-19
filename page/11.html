@@ -1,0 +1,335 @@
+---
+layout: page
+title:  "11. События"
+---
+
+
+		<p>В <em>Doctrine 2</em> имеется весьма удобная система событий, она идет как часть пакета <em>Common</em>.</p>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li>
+<a href="#111">11.1. Система событий</a><ul><li><a href="#1111">11.1.1. Именование</a></li></ul>
+</li>
+<li><a href="#112">11.2. События жизненного цикла</a></li>
+<li><a href="#113">11.3. Обратный вызов</a></li>
+<li><a href="#114">11.4. Обработка событий</a></li>
+<li>
+<a href="#115">11.5. Реализация обработчиков событий</a><ul>
+<li><a href="#1151_prePersist">11.5.1. prePersist</a></li>
+<li><a href="#1152_preRemove">11.5.2. preRemove</a></li>
+<li><a href="#1153_onFlush">11.5.3. onFlush</a></li>
+<li><a href="#1154_preUpdate">11.5.4. preUpdate</a></li>
+<li><a href="#1155_postUpdate_postRemove_postPersist">11.5.5. postUpdate, postRemove, postPersist</a></li>
+<li><a href="#1156_postLoad">11.5.6. postLoad</a></li>
+</ul>
+</li>
+<li><a href="#116_loadClassMetadata">11.6. Событие loadClassMetadata</a></li>
+</ul>
+</div>
+<h1><span id="111">11.1. Система событий</span></h1>
+<p>Любые события всегда находятся под контролем менеджера сущностей, именно он является центральным звеном в системе событий. На нем регистрируются слушатели событий, а вся обработка события также завязана на нем.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$evm</span> <span class="sy0">=</span> <span class="kw2">new</span> EventManager<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>После создания <strong>$evm</strong>, к нему можно добавлять слушателей. Давайте для примера создадим класс <strong>EventTest</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> EventTest<br><span class="br0">{</span><br>
+    <span class="kw2">const</span> preFoo <span class="sy0">=</span> <span class="st_h">'preFoo'</span><span class="sy0">;</span><br>
+    <span class="kw2">const</span> postFoo <span class="sy0">=</span> <span class="st_h">'postFoo'</span><span class="sy0">;</span><br><br>
+    <span class="kw2">private</span> <span class="re0">$_evm</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="re0">$preFooInvoked</span> <span class="sy0">=</span> <span class="kw4">false</span><span class="sy0">;</span><br>
+    <span class="kw2">public</span> <span class="re0">$postFooInvoked</span> <span class="sy0">=</span> <span class="kw4">false</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="re0">$evm</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">addEventListener</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="kw2">self</span><span class="sy0">::</span><span class="me2">preFoo</span><span class="sy0">,</span> <span class="kw2">self</span><span class="sy0">::</span><span class="me2">postFoo</span><span class="br0">)</span><span class="sy0">,</span> <span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> preFoo<span class="br0">(</span>EventArgs <span class="re0">$e</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">preFooInvoked</span> <span class="sy0">=</span> <span class="kw4">true</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> postFoo<span class="br0">(</span>EventArgs <span class="re0">$e</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">postFooInvoked</span> <span class="sy0">=</span> <span class="kw4">true</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="co1">// Создадим экземпляр</span><br><span class="re0">$test</span> <span class="sy0">=</span> <span class="kw2">new</span> EventTest<span class="br0">(</span><span class="re0">$evm</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Запустить обработчик можно с помощью метода <strong>dispatchEvent()</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">dispatchEvent</span><span class="br0">(</span>EventTest<span class="sy0">::</span><span class="me2">preFoo</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">dispatchEvent</span><span class="br0">(</span>EventTest<span class="sy0">::</span><span class="me2">postFoo</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>При помощи метода <strong>removeEventListener()</strong> можно отключить слушателя.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">removeEventListener</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="kw2">self</span><span class="sy0">::</span><span class="me2">preFoo</span><span class="sy0">,</span> <span class="kw2">self</span><span class="sy0">::</span><span class="me2">postFoo</span><span class="br0">)</span><span class="sy0">,</span> <span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Помимо слушателей в системе событий <strong>Doctrine 2</strong> существует понятие подписчиков. Мы можем создать простой класс <strong>TestEventSubscriber</strong>, который определяет интерфейс <strong>\Doctrine\Common\EventSubscriber</strong> и имееь метод <strong>getSubscribedEvents()</strong>. Этот метод будет возвращать массив событий, на которые следует подписаться.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> TestEventSubscriber implements \Doctrine\Common\EventSubscriber<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="re0">$preFooInvoked</span> <span class="sy0">=</span> <span class="kw4">false</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> preFoo<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">preFooInvoked</span> <span class="sy0">=</span> <span class="kw4">true</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getSubscribedEvents<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="kw3">array</span><span class="br0">(</span>TestEvent<span class="sy0">::</span><span class="me2">preFoo</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="re0">$eventSubscriber</span> <span class="sy0">=</span> <span class="kw2">new</span> TestEventSubscriber<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">addEventSubscriber</span><span class="br0">(</span><span class="re0">$eventSubscriber</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>При наступлении определенного события всем подписчикам будет отправлено соответствующее уведомление.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">dispatchEvent</span><span class="br0">(</span>TestEvent<span class="sy0">::</span><span class="me2">preFoo</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Можете проверить экземпляр <strong>$eventSubscriber</strong> и убедится, что был вызван метод <strong>preFoo()</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$eventSubscriber</span><span class="sy0">-&gt;</span><span class="me1">preFooInvoked</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">echo</span> <span class="st_h">'pre foo invoked!'</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<h2><span id="1111">11.1.1. Именование</span></h2>
+<p>Назначать имена событиям лучше всего в стиле <em>CamelCase</em>, а значение соответствующей константы должно соответствовать ее имени, даже несмотря на орфографию. Этому есть следующие причины:</p>
+<ul>
+<li>Это легко читается.</li>
+<li>Простота.</li>
+<li>Каждый метод в <em>EventSubscriber </em>именуется после соответствующей константы. Если имя и значение константы отличаются, вам придется использовать новое значение, и, таким образом, менять сам код после изменения значения, что противоречит самой сути констант.</li>
+</ul>
+<p>Пример правльной нотации был приведен выше в примере с <strong>EventTest</strong>.</p>
+<h1><span id="112">11.2. События жизненного цикла</span></h1>
+<p><em>EntityManager</em> и <em>UnitOfWork</em> могут вызывать множество различных событий в течение жизненного цикла подписанных на них сущностей.</p>
+<ul>
+<li>preRemove — возникает для заданной сущности перед тем как <em>EntityManager</em> применит к ней операцию удаления. Это событие не вызывается при вызове <em>DQL</em> запроса <strong>DELETE</strong>.</li>
+<li>postRemove — вызывается после того как сущность была удалена. Событие будет вызвано после выполнения операций удаления в базе даннах. Не вызывается для <em>DQL</em> запросов <strong>DELETE</strong>.</li>
+<li>prePersist — возникает для заданной сущности перед тем как <em>EntityManager</em> применит к ней операцию сохранения (персистирования).</li>
+<li>postPersist — возникает после того как сущность была сохранена. Событие вызывается посе операции вставки новой записи в базу данных. В этом событии будут доступны сгенерированные значения первичного ключа.</li>
+<li>preUpdate — возникает перед выполнением операций обновления в БД. Не вызывается для <em>DQL</em> запросов <strong>UPDATE</strong>.</li>
+<li>postUpdate — возникает после выполнения операций обновления в БД. Не вызывается для <em>DQL</em> запросов <strong>UPDATE</strong>.</li>
+<li>postLoad — возникает после того как сущность была загружена из БД в текущий <em>EntityManager</em> или после того как к ней была применена операция <strong>refresh</strong>.</li>
+<li>loadClassMetadata — возникает после того как для класса были загружены метаданные из одного из возможных источников (аннотации, <em>XMLили YAML</em>).</li>
+<li>onFlush — возникает после того как для всех <em>MANAGED</em>-сущностей были вычислены наборы необходимых изменений <strong>(change-sets)</strong>. Это событие не относится к колбеку жизненного цикла.</li>
+<li>onClear — возникает при выполнении операции <strong>EntityManager#clear()</strong>, после того как из <em>UnitOfWork</em> были удалены все ссылки на сущности.</li>
+</ul>
+<blockquote><p>Заметьте, что событие <em>postLoad</em> возникает еще до того как были инициализированы связи сущности. Поэтому обращаться к связям из postLoad или обработчика события небезопасно.</p></blockquote>
+<p>Получить доступ к константам события можно из класса <em>Event</em>, относящемуся к пакету <em>ORM</em>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">use</span> Doctrine\ORM\Events<span class="sy0">;</span><br><span class="kw1">echo</span> Events<span class="sy0">::</span><span class="me2">preUpdate</span><span class="sy0">;</span>
+</div></div>
+<p>Существует два различных типа слушателей, которые могут перехватывать события:</p>
+<ul>
+<li>
+<strong>Lifecycle Callbacks</strong> – это методы самих сущностей, они исполняются при возникновении того или иного события. Им не передаются аргументы, они созданы лишь для того, чтобы дать возможность вносить изменения изнутри контекста сущности.</li>
+<li>
+<strong>Lifecycle Event Listeners</strong> – это классы со своими специальными callback-методами, им передается соответствующий экземпляра класса EventArgs, который предоставляет доступ к сущности, EntityManager’у или иным данным.</li>
+</ul>
+<blockquote><p>События, возникающие во время выполнения <strong>EntityManager#flush()</strong> накладывают специфические ограничения на перечень допустимых к использованию операций. В разделе “<a href="http://odiszapc.ru/doctrine/events/#115">Реализация обработчиков событий</a>” описано какие операции в каких событиях допустимы.</p></blockquote>
+<h1><span id="113">11.3. Обратный вызов</span></h1>
+<p>Событие жизненного цикла представляет собой обычное событие, на которое можно повесить метод-коллбек внутри класса сущности, который будет вызван при его наступлении.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="co4">/** @Entity @HasLifecycleCallbacks */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @Column(type="string", length=255)<br>
+     */</span><br>
+    <span class="kw2">public</span> <span class="re0">$value</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @Column(name="created_at", type="string", length=255) */</span><br>
+    <span class="kw2">private</span> <span class="re0">$createdAt</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @PrePersist */</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPrePersist<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">createdAt</span> <span class="sy0">=</span> <span class="kw3">date</span><span class="br0">(</span><span class="st_h">'Y-m-d H:m:s'</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co4">/** @PrePersist */</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doOtherStuffOnPrePersist<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">value</span> <span class="sy0">=</span> <span class="st_h">'changed from prePersist callback!'</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co4">/** @PostPersist */</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPostPersist<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">value</span> <span class="sy0">=</span> <span class="st_h">'changed from postPersist callback!'</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co4">/** @PostLoad */</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPostLoad<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">value</span> <span class="sy0">=</span> <span class="st_h">'changed from postLoad callback!'</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co4">/** @PreUpdate */</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPreUpdate<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">value</span> <span class="sy0">=</span> <span class="st_h">'changed from preUpdate callback!'</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Обратите внимание, при использовании коллбеков к классу сущности нужно добавить маркер <strong>@HasLifecycleCallbacks</strong>.</p>
+<p>Регистрация событий при использовании <em>YAML</em> или <em>XML</em> осуществляется как показано ниже.</p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+  type</span><span class="sy2">: </span>entity<span class="co4"><br>
+  fields</span><span class="sy2">:<br></span><span class="co1"># ...</span><span class="co4"><br>
+    name</span>:<span class="co3"><br>
+      type</span><span class="sy2">: </span>string<span class="br0">(</span><span class="nu0">50</span><span class="br0">)</span><span class="co4"><br>
+  lifecycleCallbacks</span>:<span class="co3"><br>
+    prePersist</span><span class="sy2">: </span><span class="br0">[</span> doStuffOnPrePersist, doOtherStuffOnPrePersistToo <span class="br0">]</span><span class="co3"><br>
+    postPersist</span><span class="sy2">: </span><span class="br0">[</span> doStuffOnPostPersist <span class="br0">]</span>
+</div></div>
+<p><em>XML</em> будет выглядеть так:</p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;?xml</span> <span class="re0">version</span>=<span class="st0">"1.0"</span> <span class="re0">encoding</span>=<span class="st0">"UTF-8"</span><span class="re2">?&gt;</span></span><br><br><span class="sc3"><span class="re1">&lt;doctrine-mapping</span> <span class="re0">xmlns</span>=<span class="st0">"http://doctrine-project.org/schemas/orm/doctrine-mapping"</span></span><br><span class="sc3">      <span class="re0">xmlns:xsi</span>=<span class="st0">"http://www.w3.org/2001/XMLSchema-instance"</span></span><br><span class="sc3">      <span class="re0">xsi:schemaLocation</span>=<span class="st0">"http://doctrine-project.org/schemas/orm/doctrine-mapping</span><br><span class="sc3">                          /Users/robo/dev/php/Doctrine/doctrine-mapping.xsd"</span><span class="re2">&gt;</span></span><br><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br><br>
+        <span class="sc3"><span class="re1">&lt;lifecycle-callbacks<span class="re2">&gt;</span></span></span><br>
+            <span class="sc3"><span class="re1">&lt;lifecycle-callback</span> <span class="re0">type</span>=<span class="st0">"prePersist"</span> <span class="re0">method</span>=<span class="st0">"doStuffOnPrePersist"</span><span class="re2">/&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;lifecycle-callback</span> <span class="re0">type</span>=<span class="st0">"postPersist"</span> <span class="re0">method</span>=<span class="st0">"doStuffOnPostPersist"</span><span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;/lifecycle-callbacks<span class="re2">&gt;</span></span></span><br><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p>Единственное, нужно убедится, что в модели <strong>User</strong> определены открытые методы <strong>doStuffOnPrePersist()</strong> и <strong>doStuffOnPostPersist()</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// ...</span><br><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPrePersist<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="co1">// ...</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> doStuffOnPostPersist<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="co1">// ...</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>В теге <strong>lifecycleCallbacks </strong>ключ представляет собой тип события, а значение — имена методов. Допустимые типы событий были перечислены в предыдущем разделе.</p>
+<h1><span id="114">11.4. Обработка событий</span></h1>
+<p>Обработчики событий<strong></strong> <strong>(event listeners)</strong> гораздо интереснее методов-коллбеков, определяемых внутри классов. Их использование позволяет реализовать механизмы, которые можно повторно использовать в различных классах, правда это требует более глубокого понимания работы внутренних аспектов работы <em>EntityManager</em> и <em>UnitOfWork</em>. Понять как написать свой собственный обработчик поможет глава <a href="http://odiszapc.ru/doctrine/events/#115">“Реализация обработчиков событий”</a>.</p>
+<p>Для регистрации обработчика нужно подключить его к <em>EventManager</em>, а затем передать последний в фабрику <em>EntityManager</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$eventManager</span> <span class="sy0">=</span> <span class="kw2">new</span> EventManager<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$eventManager</span><span class="sy0">-&gt;</span><span class="me1">addEventListener</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span>Events<span class="sy0">::</span><span class="me2">preUpdate</span><span class="br0">)</span><span class="sy0">,</span> MyEventListener<span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$eventManager</span><span class="sy0">-&gt;</span><span class="me1">addEventSubscriber</span><span class="br0">(</span><span class="kw2">new</span> MyEventSubscriber<span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$entityManager</span> <span class="sy0">=</span> EntityManager<span class="sy0">::</span><span class="me2">create</span><span class="br0">(</span><span class="re0">$dbOpts</span><span class="sy0">,</span> <span class="re0">$config</span><span class="sy0">,</span> <span class="re0">$eventManager</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Получить экзмепляр EventManager можно после создание EntityManager:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$entityManager</span><span class="sy0">-&gt;</span><span class="me1">getEventManager</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">addEventListener</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span>Events<span class="sy0">::</span><span class="me2">preUpdate</span><span class="br0">)</span><span class="sy0">,</span> MyEventListener<span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$entityManager</span><span class="sy0">-&gt;</span><span class="me1">getEventManager</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">addEventSubscriber</span><span class="br0">(</span><span class="kw2">new</span> MyEventSubscriber<span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h1><span id="115">11.5. Реализация обработчиков событий</span></h1>
+<p>Эта секция объясняет какие действия можно, а какие нельзя выполнять в обработчиках событий <em>UnitOfWork</em>. Внимательно следуйте этим замечаниям, ведь хотя экземпляр <em>EntityManager</em> и передается всем обработчикам, выполнение некорректной операции может повлечь за собой большое число ошибок вроде нарушения консистентности данных, либо потерь операций обновления, сохранения или удаления данных.</p>
+<p>Для описываемых событий, если они являются также и событиями жизненного цикла, действует еще одно ограничение — внутри обработчиков у вас не будет доступа к <em>API EntityManager</em> и <em>UnitOfWork</em>.</p>
+<h2><span id="1151_prePersist">11.5.1. prePersist</span></h2>
+<p>Есть два способы вызвать событие <em>prePersist</em>. Первый очевиден — это когда вызывается <strong>EntityManager#persist()</strong>. Также, событие будет вызвано по иерархии для каскадных связей.</p>
+<p>Другим способом событие может быть вызвано изнутри метода <strong>flush()</strong> после того как просчитаны все изменения, которые нужно будет внести в связи, и заданная связь была отмечена как <strong>cascade persist</strong>. Теперь любая новая сущность найденная при выполнении этой операции будет сохранена в базу, и для нее будет вызвано событие <em>prePersist</em>. Такой подход называется <strong>“persistence by reachability”</strong>.</p>
+<p>В обоих случаях в обработчик передается экземпляр <em>LifecycleEventArgs</em>, который будет иметь доступ к самой сущности и ее <em>EntityManager</em>.</p>
+<p>Для события <em>prePersist</em> действуют следующие ограничения:</p>
+<ul>
+<li>Если используется какой-нибудь <em>PrePersist Identity Generator,</em> например последовательность, то значение <em>ID</em> не будет доступно в событии <em>PrePersist</em>.</li>
+<li>
+<em>Doctrine</em> не умеет распознавать изменения, внесенные в связи в событии <em>PrePersist</em>, если оно было вызвано при каскадном сохранении (<strong>by “reachability”</strong>)  как было описано выше, пока вы не будете использовать для этого внутренний <em>API UnitOfWork</em>. Мы не рекомендуем использовать подобные операции в таком контексте, так что делайте это на свой страх и риск, и да поможет вам Бог (и unit-тесты).</li>
+</ul>
+<h2><span id="1152_preRemove">11.5.2. preRemove</span></h2>
+<p>Событие <em>preRemove</em> выполняется для каждой сущности, переданной методу <strong>EntityManager#remove()</strong>. Событие каскадно распространяется на все связи, которые позволяют каскадное удаление.</p>
+<p>Нет никаких ограничений на вызываемые методы внутри этого события, за исключением того когда метод <strong>remove()</strong> вызывается во время операции <strong>flush()</strong>.</p>
+<h2><span id="1153_onFlush">11.5.3. onFlush</span></h2>
+<p><em>OnFlush</em> одно из самых навороченных. Оно вызывается внутри метода <strong>EntityManager#flush()</strong> после того как будут просчитаны все изменения в <em>MANAGED</em> сущностях и их связях. Это означает, что <em>onFlush</em> имее досутп к наборам:</p>
+<ul>
+<li>Сущностей, запланированных для вставки</li>
+<li>Сущностей, запланированных для обновления</li>
+<li>Сущностей, запланированных для удаления</li>
+<li>Коллекций, запланированных для обновления</li>
+<li>Коллекций, запланированных для удаления</li>
+</ul>
+<p>Чтобы нормально работать с этим событием нужно разбираться во внутреннем <em>API UnitOfWork</em>, именно он предоставляет доступ к вышеприведенным наборам данных. Рассмотрим пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> FlushExampleListener<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> onFlush<span class="br0">(</span>OnFlushEventArgs <span class="re0">$eventArgs</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$em</span> <span class="sy0">=</span> <span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getEntityManager</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$uow</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getUnitOfWork</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+        <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$uow</span><span class="sy0">-&gt;</span><span class="me1">getScheduledEntityInsertions</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$entity</span><span class="br0">)</span> <span class="br0">{</span><br><br>
+        <span class="br0">}</span><br><br>
+        <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$uow</span><span class="sy0">-&gt;</span><span class="me1">getScheduledEntityUpdates</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$entity</span><span class="br0">)</span> <span class="br0">{</span><br><br>
+        <span class="br0">}</span><br><br>
+        <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$uow</span><span class="sy0">-&gt;</span><span class="me1">getScheduledEntityDeletions</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$entity</span><span class="br0">)</span> <span class="br0">{</span><br><br>
+        <span class="br0">}</span><br><br>
+        <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$uow</span><span class="sy0">-&gt;</span><span class="me1">getScheduledCollectionDeletions</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$col</span><span class="br0">)</span> <span class="br0">{</span><br><br>
+        <span class="br0">}</span><br><br>
+        <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$uow</span><span class="sy0">-&gt;</span><span class="me1">getScheduledCollectionUpdates</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$col</span><span class="br0">)</span> <span class="br0">{</span><br><br>
+        <span class="br0">}</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Для <em>onFlush</em> действуют следующие ограничения:</p>
+<ul>
+<li>Если в обработчике <em>onFlush</em> созадется и сохраняется новую сущность, то одного вызова <strong>EntityManager#persist()</strong> недостаточно. Нужно сделать еще один — <strong>$unitOfWork-&gt;computeChangeSet($classMetadata, $entity)</strong>
+</li>
+<li>Изменение полей или связей требует явного пересчета набора изменений <strong>(changeset)</strong> затрагиваемой сущности. Делается это вызовом <strong>$unitOfWork-&gt;recomputeSingleEntityChangeSet($classMetadata, $entity)</strong>.</li>
+</ul>
+<h2><span id="1154_preUpdate">11.5.4. preUpdate</span></h2>
+<p>У этого события больше всего ограничений, т.к. вызывается оно внутри метода <strong>EntityManager#flush()</strong> непосредственно перед <em>SQL UPDATE</em>.</p>
+<p>В этом событии нельзя вносить изменения в связи обновляемой сущности, т.к. на данном этапе операции <strong>flush</strong> <em>Doctrine</em> не сумеет гарантированно обеспечить ссылочную целостность. Однако у этого события есть существенный плюс — оно вызывается с набором аргументов <em>PreUpdateEventArgs</em>, в котором содержится ссылка на просчитанный <strong>change-set</strong> для заданной сущности.</p>
+<p>Это означает, что можно получить доступ ко всем затронутым при изменении полям, при этом будет доступно как старое, так и новое значения поля. У <em>PreUpdateEventArgs</em> есть следующие методы:</p>
+<ul>
+<li>
+<strong>getEntity()</strong> возвращает саму сущность.</li>
+<li>
+<strong>getEntityChangeSet()</strong> возвращает копию массива с набором изменений. Изменения, внесенные в этот массив никак не повлияют на операцию обновления.</li>
+<li>
+<strong>hasChangedField($fieldName)</strong> проверяе изменилось ли заданное поле или нет.</li>
+<li>
+<strong>getOldValue($fieldName)</strong> и <strong>getNewValue($fieldName)</strong> возвращают значения поля до и после его изменения соответственно.</li>
+<li>
+<strong>setNewValue($fieldName, $value)</strong> позволяет изменить значение поля.</li>
+</ul>
+<p>Типичный пример работы с <em>preUpdate</em> выглядит примерно так:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> NeverAliceOnlyBobListener<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> preUpdate<span class="br0">(</span>PreUpdateEventArgs <span class="re0">$eventArgs</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getEntity</span><span class="br0">(</span><span class="br0">)</span> instanceof User<span class="br0">)</span> <span class="br0">{</span><br>
+            <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">hasChangedField</span><span class="br0">(</span><span class="st_h">'name'</span><span class="br0">)</span> <span class="sy0">&amp;&amp;</span> <span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getNewValue</span><span class="br0">(</span><span class="st_h">'name'</span><span class="br0">)</span> <span class="sy0">==</span> <span class="st_h">'Alice'</span><span class="br0">)</span> <span class="br0">{</span><br>
+                <span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">setNewValue</span><span class="br0">(</span><span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'Bob'</span><span class="br0">)</span><span class="sy0">;</span><br>
+            <span class="br0">}</span><br>
+        <span class="br0">}</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>На основе обработки этого события можно строить валидацию полей. Это гораздо эффективней использования <strong>lifecycle callback</strong>, в которых валидация дается недешево:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> ValidCreditCardListener<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> preUpdate<span class="br0">(</span>PreUpdateEventArgs <span class="re0">$eventArgs</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getEntity</span><span class="br0">(</span><span class="br0">)</span> instanceof Account<span class="br0">)</span> <span class="br0">{</span><br>
+            <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">hasChangedField</span><span class="br0">(</span><span class="st_h">'creditCard'</span><span class="br0">)</span><span class="br0">)</span> <span class="br0">{</span><br>
+                <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">validateCreditCard</span><span class="br0">(</span><span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getNewValue</span><span class="br0">(</span><span class="st_h">'creditCard'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br>
+            <span class="br0">}</span><br>
+        <span class="br0">}</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">private</span> <span class="kw2">function</span> validateCreditCard<span class="br0">(</span><span class="re0">$no</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="co1">// throw an exception to interrupt flush event. Transaction will be rolled back.</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Для этого события существуют следующие ограничения:</p>
+<ul>
+<li>Изменения в связях переданных сущностей не будут восприниматься операцией <strong>flush()</strong>.</li>
+<li>Изменение полей также не будут восприняты операцией <strong>flush()</strong>, для этого нудно использовать сформированный <strong>change-set</strong>, которые передается событию.</li>
+<li type="_moz">Настоятельно не рекомендуется вызывать <strong>EntityManager#persist()</strong> или <strong>EntityManager#remove()</strong> даже в комбинации с <em>API UnitOfWork</em>, т.к. вне операции <strong>flush()</strong> они не будут работать как ожидается.</li>
+</ul>
+<h2><span id="1155_postUpdate_postRemove_postPersist">11.5.5. postUpdate, postRemove, postPersist</span></h2>
+<p>Эти три события вызываются внтури <strong>EntityManager#flush()</strong>. Изменения, выполненные в этих событиях не повлияют на базу данных, но можно использовать эти события для воздействия на несохраняемые элементы сущности, например простые поля класса, которые не отображены на БД, логирование или даже какие-то связанные классы, которые непосредственно обрабатываются Доктриной.</p>
+<h2><span id="1156_postLoad">11.5.6. postLoad</span></h2>
+<p>Это событие возникает после того как сущность была сконструирована менеджером сущностей.</p>
+<h1><span id="116_loadClassMetadata">11.6. Событие loadClassMetadata</span></h1>
+<p>После считывания метаданных сущности они передаются в объект класса <strong>ClassMetadataInfo</strong>. Для манипуляции этим объектом нужно обработать событие <strong>loadClassMetadata</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$test</span> <span class="sy0">=</span> <span class="kw2">new</span> EventTest<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$metadataFactory</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getMetadataFactory</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$evm</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getEventManager</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$evm</span><span class="sy0">-&gt;</span><span class="me1">addEventListener</span><span class="br0">(</span>Events<span class="sy0">::</span><span class="me2">loadClassMetadata</span><span class="sy0">,</span> <span class="re0">$test</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="kw2">class</span> EventTest<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> loadClassMetadata<span class="br0">(</span>\Doctrine\ORM\Event\LoadClassMetadataEventArgs <span class="re0">$eventArgs</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$classMetadata</span> <span class="sy0">=</span> <span class="re0">$eventArgs</span><span class="sy0">-&gt;</span><span class="me1">getClassMetadata</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$fieldMapping</span> <span class="sy0">=</span> <span class="kw3">array</span><span class="br0">(</span><br>
+            <span class="st_h">'fieldName'</span> <span class="sy0">=&gt;</span> <span class="st_h">'about'</span><span class="sy0">,</span><br>
+            <span class="st_h">'type'</span> <span class="sy0">=&gt;</span> <span class="st_h">'string'</span><span class="sy0">,</span><br>
+            <span class="st_h">'length'</span> <span class="sy0">=&gt;</span> <span class="nu0">255</span><br>
+        <span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$classMetadata</span><span class="sy0">-&gt;</span><span class="me1">mapField</span><span class="br0">(</span><span class="re0">$fieldMapping</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_23046205"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/10/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/12/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

@@ -1,0 +1,73 @@
+---
+layout: page
+title:  "16. Отслеживание изменений"
+---
+
+
+		<p>Отслеживание изменений это процесс определения что именно было изменено в MANAGED-сущностях с последнего момента как они были синхронизированы с базой данных.</p>
+<p>В Doctrine доступны 3 политики отслеживания изменений, каждая со своими достоинствами и недостатками. Политику слежения можно задать как для класса так и для иерархии классов.</p>
+<h1>16.1. Deferred Implicit</h1>
+<p>“deferred implicit” — политика, заданная по умолчанию и как водится наиболее подходящая в большинстве случаев. Doctrine обнаруживает изменения, сравнивая каждое поле во время коммита, кроме того она умеет находить изменения в сущностях, на которые ссылаются другие MANAGED-сущности (“persistence by reachability”). Несмотря на удобство, у этой политики есть и минусы, связанные с производительностью при работе с большими Unit of Work. (см. параграф <a href="http://odiszapc.ru/doctrine/architecture/#222_Unit_of_Work">Unit of Work</a>). Это связано с тем, что когда Doctrine не знает что изменилось, он вынуждена перебирать все MANAGED-сущности при каждом вызове <strong>EntityManager#flush()</strong>, что делает эту операции весьма дорогой.</p>
+<h1>16.2. Deferred Explicit</h1>
+<p>Политика “deferred explicit” чем-то напоминает ”deferred implicit”, у нее такой же принцип отслеживания изменений: во время коммита проверяется каждое поле. Разница в том, что при вызове <strong>EntityManager#persist(entity)</strong> или каскадном сохранении Doctrine будет просматривать только сущности, которые были явно помечены для этого. Все остальные сущности будут опущены. Если вы готовы пожертвовать автоматизацией в пользу производительности, это политика вам подойдет.</p>
+<p>Из всего этого следует, что в рамках этой политики вызов flush() гораздо более дешев. Минус здесь следующий. Если у вас большое приложение и бизнес логика такова, что сущности в процессе их обработки бизнес правилами должны пройти несколько слоев, то до того момента как они будут преданы <strong>EntityManager#persist()</strong> вам придется отслеживать изменения самостоятельно.</p>
+<p>Политика настраивается следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * @Entity<br>
+ * @ChangeTrackingPolicy("DEFERRED_EXPLICIT")<br>
+ */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<h1>16.3. Notify</h1>
+<p>Эта политика основана на том, что сущности сами сообщают своим слушателям о происходящих изменениях. Класс, использующий эту политику, должен реализовывать интерфейс <strong>NotifyPropertyChanged </strong>из пространства имен Doctrine (<strong>Doctrine\Common\NotifyPropertyChanged</strong>). Типичная реализация выглядит следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="kw2">use</span> Doctrine\Common\NotifyPropertyChanged<span class="sy0">,</span><br>
+    Doctrine\Common\PropertyChangedListener<span class="sy0">;</span><br><br><span class="co4">/**<br>
+ * @Entity<br>
+ * @ChangeTrackingPolicy("NOTIFY")<br>
+ */</span><br><span class="kw2">class</span> MyEntity implements NotifyPropertyChanged<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">private</span> <span class="re0">$_listeners</span> <span class="sy0">=</span> <span class="kw3">array</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addPropertyChangedListener<span class="br0">(</span>PropertyChangedListener <span class="re0">$listener</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span>_listeners<span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$listener</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Теперь в каждом сеттере для текущего или наследуемого класса нужно уведомлять все экземпляры <strong>PropertyChangedListener</strong>. Чтобы показать как это работает, добавим метод в сущность <strong>MyEntity</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="co1">// ...</span><br><br><span class="kw2">class</span> MyEntity implements NotifyPropertyChanged<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">protected</span> <span class="kw2">function</span> _onPropertyChanged<span class="br0">(</span><span class="re0">$propName</span><span class="sy0">,</span> <span class="re0">$oldValue</span><span class="sy0">,</span> <span class="re0">$newValue</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$this</span><span class="sy0">-&gt;</span>_listeners<span class="br0">)</span> <span class="br0">{</span><br>
+            <span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$this</span><span class="sy0">-&gt;</span>_listeners <span class="kw1">as</span> <span class="re0">$listener</span><span class="br0">)</span> <span class="br0">{</span><br>
+                <span class="re0">$listener</span><span class="sy0">-&gt;</span><span class="me1">propertyChanged</span><span class="br0">(</span><span class="re0">$this</span><span class="sy0">,</span> <span class="re0">$propName</span><span class="sy0">,</span> <span class="re0">$oldValue</span><span class="sy0">,</span> <span class="re0">$newValue</span><span class="br0">)</span><span class="sy0">;</span><br>
+            <span class="br0">}</span><br>
+        <span class="br0">}</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> setData<span class="br0">(</span><span class="re0">$data</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">if</span> <span class="br0">(</span><span class="re0">$data</span> <span class="sy0">!=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">data</span><span class="br0">)</span> <span class="br0">{</span><br>
+            <span class="re0">$this</span><span class="sy0">-&gt;</span>_onPropertyChanged<span class="br0">(</span><span class="st_h">'data'</span><span class="sy0">,</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">data</span><span class="sy0">,</span> <span class="re0">$data</span><span class="br0">)</span><span class="sy0">;</span><br>
+            <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">data</span> <span class="sy0">=</span> <span class="re0">$data</span><span class="sy0">;</span><br>
+        <span class="br0">}</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>В каждом методе, который изменяет состояние объекта <strong>MyEntity </strong>следует вызывать <strong>_onPropertyChanged</strong>.</p>
+<p>Проверка на предмет того, отличается ли новое значение от предшествующего, не обязательно, но рекомендуется. Так или иначе, у вас полный контроль над процессом, хотите проверяйте, хотите — нет.</p>
+<p>Минус применения этой политики очевиден: нужно реализовывать интерфейс и писать кучу связующего кода. Но заметьте, мы стараемся оставить логику нотификации максимально абстрактной. Строго говоря, нотификация не затрагивает уровень persistence и компоненты Doctrine ORM или DBAL. Так что эта политика может оказаться весьма полезной в соответствующих сценариях. Как уже было отмечено, пространство имен Doctrine/Common состоит исключительно из маленьких классов и интерфейсов, у которых практически отсутствуют внешние зависимости (нет зависимостей от DBAL и ORM компонентов). Можно легко переключиться на другой persistence layer, ничего не поломав.</p>
+<p>Положительный момент и главное преимущество этой политики в ее эффективности. Среди всех рассмотренных политик она самая быстрая. Отлично подходит для Unit of Work большого размера, а вызов <strong>flush()</strong> при отсутствии изменения очень дешев.</p>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_52198383"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/15/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/17/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

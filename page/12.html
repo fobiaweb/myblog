@@ -1,0 +1,112 @@
+---
+layout: page
+title:  "12. Пакетная обработка"
+---
+
+
+		<p>Эта глава покажет как наиболее эффективно можно осуществлять массовую вставку, обновление и удаление данных в <em>Doctrine</em>. Основная проблема при работе с массовыми операциями это повышенное потребление памяти. Есть несколько стратегий, которые могут помочь вам в этом вопросе.</p>
+<blockquote><p>ORM, вообще говоря, не предназначена для таких операций. Для этого в каждой СУБД есть свой собственный гораздо более эффективный механизм, так что если описанные стратегии вам не подойдут, мы рекомендуем воспользоваться инструментами конкретной СУБД, предназначенными для таких операций.</p></blockquote>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#121">12.1. Массовые вставки</a></li>
+<li>
+<a href="#122">12.2. Массовые обновления</a><ul>
+<li><a href="#1221_DQL_UPDATE">12.2.1. DQL UPDATE</a></li>
+<li><a href="#1222">12.2.2. Итерация по результирующему набору</a></li>
+</ul>
+</li>
+<li>
+<a href="#123">12.3. Массовое удаление</a><ul>
+<li><a href="#1231_DQL_DELETE">12.3.1. DQL DELETE</a></li>
+<li><a href="#1232">12.3.2. Итерация по результирующему набору</a></li>
+</ul>
+</li>
+<li><a href="#124_Iterating_Large_Results_for_Data-Processing">12.4. Iterating Large Results for Data-Processing</a></li>
+</ul>
+</div>
+<h1><span id="121">12.1. Массовые вставки</span></h1>
+<p>В <em>Doctrine</em> массовые вставки лучше всего выполнять партиями, используя возможности транзакций <em>EntityManager</em>. Следующий пример показывает как вставлять 10000 объектов партиями по 20 штук. Для достижения оптимального результата имеет смысл поэкспериментировать с размером партии. Больший размер означает бо’льшие возможности для повторного использования внутренних операций, но и требует больше работы при операции <strong>flush()</strong>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$batchSize</span> <span class="sy0">=</span> <span class="nu0">20</span><span class="sy0">;</span><br><span class="kw1">for</span> <span class="br0">(</span><span class="re0">$i</span> <span class="sy0">=</span> <span class="nu0">1</span><span class="sy0">;</span> <span class="re0">$i</span> <span class="sy0">&lt;=</span> <span class="nu0">10000</span><span class="sy0">;</span> <span class="sy0">++</span><span class="re0">$i</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$user</span> <span class="sy0">=</span> <span class="kw2">new</span> CmsUser<span class="sy0">;</span><br>
+    <span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setStatus</span><span class="br0">(</span><span class="st_h">'user'</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setUsername</span><span class="br0">(</span><span class="st_h">'user'</span> <span class="sy0">.</span> <span class="re0">$i</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setName</span><span class="br0">(</span><span class="st_h">'Mr.Smith-'</span> <span class="sy0">.</span> <span class="re0">$i</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="kw1">if</span> <span class="br0">(</span><span class="br0">(</span><span class="re0">$i</span> <span class="sy0">%</span> <span class="re0">$batchSize</span><span class="br0">)</span> <span class="sy0">==</span> <span class="nu0">0</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">clear</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Detaches all objects from Doctrine!</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<h1><span id="122">12.2. Массовые обновления</span></h1>
+<p>В <em>Doctrine</em> есть два способа осуществления массовых обновлений.</p>
+<h2><span id="1221_DQL_UPDATE">12.2.1. DQL UPDATE</span></h2>
+<p>На сегодняшний день наиболее эффективным способом осуществления массовых обновлений является <em>DQL</em> запрос <em>UPDATE:</em></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'update MyProject\Model\Manager m set m.salary = m.salary * 0.9'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$numUpdated</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">execute</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1222">12.2.2. Итерация по результирующему набору</span></h2>
+<p>Другой подход заключается в использовании метода <strong>Query#iterate()</strong> для итерации по результирующему набору без необходимости загрузки полного набора данных в память. Следующий пример показывает как это можно сделать, комбинируя итерацию и пакетную обработку:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$batchSize</span> <span class="sy0">=</span> <span class="nu0">20</span><span class="sy0">;</span><br><span class="re0">$i</span> <span class="sy0">=</span> <span class="nu0">0</span><span class="sy0">;</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'select u from MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$iterableResult</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">iterate</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="kw1">foreach</span><span class="br0">(</span><span class="re0">$iterableResult</span> <span class="kw1">AS</span> <span class="re0">$row</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$row</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="sy0">;</span><br>
+    <span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">increaseCredit</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">calculateNewBonuses</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="kw1">if</span> <span class="br0">(</span><span class="br0">(</span><span class="re0">$i</span> <span class="sy0">%</span> <span class="re0">$batchSize</span><span class="br0">)</span> <span class="sy0">==</span> <span class="nu0">0</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Выполняет обновления</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">clear</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Отсоединяет все объекты от Doctrine</span><br>
+    <span class="br0">}</span><br>
+    <span class="sy0">++</span><span class="re0">$i</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<blockquote>
+<p>Нельзя осуществлять итерацию в запросах, которые подсоединяют связи-коллекции <strong>(collection-valued association)</strong>. Природа таких результируюзих наборов не подходит для инкрементой гидрации.</p>
+<p>Оригинал: <strong>Iterating results is not possible with queries that fetch-join a collection-valued association. The nature of such SQL result sets is not suitable for incremental hydration.</strong></p>
+</blockquote>
+<h1><span id="123">12.3. Массовое удаление</span></h1>
+<p>В <em>Doctrine</em> есть два способа осуществления массовых удалений. Можно либо запустить одиночный <em>DQL</em> запрос <em>DELETE</em> или же проитерировать набор данных, удаляя каждый из элементов по отдельности.</p>
+<h2><span id="1231_DQL_DELETE">12.3.1. DQL DELETE</span></h2>
+<p>На сегодняшний день наиболее эффективным способом для массовых удалений является <em>DQL </em>запрос <em>DELETE</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'delete from MyProject\Model\Manager m where m.salary &gt; 100000'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$numDeleted</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">execute</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1232">12.3.2. Итерация по результирующему набору</span></h2>
+<p>Другой подход заключается в использовании метода <strong>Query#iterate()</strong> для итерации по результирующему набору без необходимости загрузки полного набора данных в память. Следующий пример показывает как это можно сделать, комбинируя итерацию и пакетную обработку:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$batchSize</span> <span class="sy0">=</span> <span class="nu0">20</span><span class="sy0">;</span><br><span class="re0">$i</span> <span class="sy0">=</span> <span class="nu0">0</span><span class="sy0">;</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'select u from MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$iterableResult</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">iterate</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="kw1">while</span> <span class="br0">(</span><span class="br0">(</span><span class="re0">$row</span> <span class="sy0">=</span> <span class="re0">$iterableResult</span><span class="sy0">-&gt;</span><span class="kw3">next</span><span class="br0">(</span><span class="br0">)</span><span class="br0">)</span> <span class="sy0">!==</span> <span class="kw4">false</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">remove</span><span class="br0">(</span><span class="re0">$row</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="kw1">if</span> <span class="br0">(</span><span class="br0">(</span><span class="re0">$i</span> <span class="sy0">%</span> <span class="re0">$batchSize</span><span class="br0">)</span> <span class="sy0">==</span> <span class="nu0">0</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Выполняет удаления</span><br>
+        <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">clear</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// Отсоединяет все объекты от Doctrine</span><br>
+    <span class="br0">}</span><br>
+    <span class="sy0">++</span><span class="re0">$i</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<blockquote>
+<p>Нельзя осуществлять итерацию в запросах, которые подсоединяют связи-коллекции <strong>(collection-valued association)</strong>. Природа таких результируюзих наборов не подходит для инкрементой гидрации.</p>
+<p>Оригинал: <strong>Iterating results is not possible with queries that fetch-join a collection-valued association. The nature of such SQL result sets is not suitable for incremental hydration.</strong></p>
+</blockquote>
+<h1><span id="124_Iterating_Large_Results_for_Data-Processing">12.4. Iterating Large Results for Data-Processing</span></h1>
+<p>Если не требуется делать <em>UPDATE</em> или <em>DELETE</em>, то для итерации можно использовать метод <strong>iterate()</strong>. Экземпляр <em>IterableResult</em>, возвращаемый методом <strong>$query-&gt;iterate()</strong> определяет интерфейс <em>Iterator</em>, поэтому можно обрабатывать большой результирующий набор при минимальных затратах памяти:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'select u from MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$iterableResult</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">iterate</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$iterableResult</span> <span class="kw1">AS</span> <span class="re0">$row</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="co1">// Что-то делаем с данными в строке, $row[0] всегда является объектом</span><br><br>
+    <span class="co1">// Отсоединяем от Doctrine, так что сразу будет запущена сборка мусора</span><br>
+    <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">detach</span><span class="br0">(</span><span class="re0">$row</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="br0">)</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<blockquote>
+<p>Нельзя осуществлять итерацию в запросах, которые подсоединяют связи-коллекции <strong>(collection-valued association)</strong>. Природа таких результируюзих наборов не подходит для инкрементой гидрации.</p>
+<p>Оригинал: <strong>Iterating results is not possible with queries that fetch-join a collection-valued association. The nature of such SQL result sets is not suitable for incremental hydration.</strong></p>
+</blockquote>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_45606091"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/11/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/13/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

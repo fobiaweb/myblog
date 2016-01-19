@@ -1,0 +1,200 @@
+---
+layout: page
+title:  "3. Настройка"
+---
+
+
+		<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li>
+<a href="#31">3.1. Начальная загрузка</a><ul>
+<li><a href="#311">3.1.1. Загрузка классов</a></li>
+<li><a href="#3111__PEAR">3.1.1.1. Установка с помощью PEAR</a></li>
+<li><a href="#3112__TAR">3.1.1.2. Установка из TAR-архива</a></li>
+<li><a href="#3113__Git">3.1.1.3. Установка из Git-репозитория</a></li>
+<li><a href="#3114__Symfony">3.1.1.4. Дополнительные компоненты Symfony</a></li>
+<li><a href="#312__EntityManager">3.1.2. Получение экземпляра EntityManager</a></li>
+<li><a href="#313">3.1.3. Быстрая настройка</a></li>
+</ul>
+</li>
+<li>
+<a href="#32">3.2. Параметры конфигурации</a><ul>
+<li><a href="#321">3.2.1. Каталог для прокси (* Обязательно *)</a></li>
+<li><a href="#322">3.2.2. Пространства имен для прокси (* Обязательно *)</a></li>
+<li><a href="#323">3.2.3. Драйвер метаданных (* Обязательно *)</a></li>
+<li><a href="#324">3.2.4. Кеш метаданных (* Рекомендуется *)</a></li>
+<li><a href="#325">3.2.5. Кеш запросов (* Рекомендуется *)</a></li>
+<li><a href="#326_SQL">3.2.6. Журналирование SQL-запросов (* Опционально *)</a></li>
+<li><a href="#327">3.2.7. Автоматическое создание классов прокси (* Опционально *)</a></li>
+</ul>
+</li>
+<li><a href="#33__development-_production">3.3. Конфигурация для development- и production- сред</a></li>
+<li><a href="#34">3.4. Параметры подключения</a></li>
+<li>
+<a href="#35">3.5. Объекты прокси</a><ul>
+<li><a href="#351">3.5.1. Прокси для ссылок</a></li>
+<li><a href="#352">3.5.2. Прокси для связей</a></li>
+<li><a href="#353">3.5.3. Генерация классов прокси</a></li>
+</ul>
+</li>
+<li><a href="#36">3.6. Несколько источников метаданных</a></li>
+<li><a href="#37">3.7. Репозиторий по-умолчанию (* Опционально *)</a></li>
+</ul>
+</div>
+<h1><span id="31">3.1. Начальная загрузка</span></h1>
+<p>Инициализация <em>Doctrine</em> относительно проста и осуществляется в два этапа:</p>
+<ol>
+<li>Убедиться, что <em>Doctrine</em> имеет доступ ко всем небходимые классам, которые могут использоваться в процессе работы.</li>
+<li>Получить экземпляр класса <em>EntityManager</em>.</li>
+</ol>
+<h2><span id="311">3.1.1. Загрузка классов</span></h2>
+<p>Давайте начнем с загрузки классов. Вот что нам нужно: настроить несколько загрузчиков (часто называемых “автозагрузчиками”) таким образом, чтобы <em>Doctrine</em> при необходимости смогла сама подгружать нужные классы. Пространство имен <em>Doctrine</em> содержит очень быстрый и легковесный загрузчик, который можно использовать не только для <em>Doctrine</em>, но и других библиотек, если они соответствуют таким требованиям: местоположение классов в дереве каталогов отображается на их именах и пространствах имен, при этом у этих классов должно быть одно общее корневое пространство имен.</p>
+<blockquote><p>Вы не обязаны использовать только один этот метод для загрузки классов Doctrine. Нет никакой разницы как именно будет загружен класс. Если желаете использовать другой загрузчик, или подключать класс вручную, пожалуйста. Аналогично, загрузчик <em>Doctrine</em> может применяться не только для нее самой, но и для других классов, именование которых соответствует описанным выше стандартам.</p></blockquote>
+<p>Ниже будут приведены несколько типичных конфигураций автозагрузчика для разных способов установки <em>Doctrine</em>.</p>
+<blockquote><p>Для тестирования кода ниже, создайте какой-нибудь файл, наапример test.php. </p></blockquote>
+<h2><span id="3111__PEAR">3.1.1.1. Установка с помощью PEAR</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// test.php</span><br><br><span class="kw1">require</span> <span class="st_h">'Doctrine/ORM/Tools/Setup.php'</span><span class="sy0">;</span><br><br>
+Doctrine\ORM\Tools\Setup<span class="sy0">::</span><span class="me2">registerAutoloadPEAR</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="3112__TAR">3.1.1.2. Установка из TAR-архива</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// test.php</span><br>
+ <span class="kw1">require</span> <span class="st_h">'Doctrine/ORM/Tools/Setup.php'</span><span class="sy0">;</span><br><br><span class="re0">$lib</span> <span class="sy0">=</span> <span class="st0">"/path/to/doctrine2-orm/lib"</span><span class="sy0">;</span><br>
+Doctrine\ORM\Tools\Setup<span class="sy0">::</span><span class="me2">registerAutoloadDirectory</span><span class="br0">(</span><span class="re0">$lib</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="3113__Git">3.1.1.3. Установка из Git-репозитория</span></h2>
+<p>Здесь подразумевается, что у вас есть все зависимые пакеты, их можно получить с помощью <em>git submodule update –init</em></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// test.php</span><br><span class="kw1">require</span> <span class="st_h">'Doctrine/ORM/Tools/Setup.php'</span><span class="sy0">;</span><br><br><span class="re0">$lib</span> <span class="sy0">=</span> <span class="st_h">'/path/to/doctrine2-orm-root'</span><span class="sy0">;</span><br>
+Doctrine\ORM\Tools\Setup<span class="sy0">::</span><span class="me2">registerAutoloadGit</span><span class="br0">(</span><span class="re0">$lib</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="3114__Symfony">3.1.1.4. Дополнительные компоненты Symfony</span></h2>
+<p>Три приведенных примера подразумевают и загрузку классов Symphony: <em>Symfony Console</em> и <em>YAML</em>, которые также могут понадобиться для <em>Doctrine 2</em>.</p>
+<h2><span id="312__EntityManager">3.1.2. Получение экземпляра EntityManager</span></h2>
+<p>Итак, с загрузкой классов закончили, теперь нужно создать экземпляр менеджера сущностей <em>EntityManager</em>. Именно через осуществляется вся основная работа в <em>ORM Doctrine</em>.</p>
+<p>Для настройки <em>EntityManager</em> необходим экземпляр класса <em>Doctrine\ORM\Configuration</em> и параметры подключения к базе данных. Ниже показан возможный вариант настройки.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">use</span> Doctrine\ORM\EntityManager<span class="sy0">,</span><br>
+Doctrine\ORM\Configuration<span class="sy0">;</span><br><br><span class="co1">// ...</span><br><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$applicationMode</span> <span class="sy0">==</span> <span class="st0">"development"</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$cache</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Cache\ArrayCache<span class="sy0">;</span><br><span class="br0">}</span> <span class="kw1">else</span> <span class="br0">{</span><br>
+    <span class="re0">$cache</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Cache\ApcCache<span class="sy0">;</span><br><span class="br0">}</span><br><br><span class="re0">$config</span> <span class="sy0">=</span> <span class="kw2">new</span> Configuration<span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setMetadataCacheImpl</span><span class="br0">(</span><span class="re0">$cache</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$driverImpl</span> <span class="sy0">=</span> <span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">newDefaultAnnotationDriver</span><span class="br0">(</span><span class="st_h">'/path/to/lib/MyProject/Entities'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setMetadataDriverImpl</span><span class="br0">(</span><span class="re0">$driverImpl</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setQueryCacheImpl</span><span class="br0">(</span><span class="re0">$cache</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setProxyDir</span><span class="br0">(</span><span class="st_h">'/path/to/myproject/lib/MyProject/Proxies'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setProxyNamespace</span><span class="br0">(</span><span class="st_h">'MyProject\Proxies'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$applicationMode</span> <span class="sy0">==</span> <span class="st0">"development"</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setAutoGenerateProxyClasses</span><span class="br0">(</span><span class="kw4">true</span><span class="br0">)</span><span class="sy0">;</span><br><span class="br0">}</span> <span class="kw1">else</span> <span class="br0">{</span><br>
+    <span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setAutoGenerateProxyClasses</span><span class="br0">(</span><span class="kw4">false</span><span class="br0">)</span><span class="sy0">;</span><br><span class="br0">}</span><br><br><span class="re0">$connectionOptions</span> <span class="sy0">=</span> <span class="kw3">array</span><span class="br0">(</span><br>
+    <span class="st_h">'driver'</span> <span class="sy0">=&gt;</span> <span class="st_h">'pdo_sqlite'</span><span class="sy0">,</span><br>
+    <span class="st_h">'path'</span> <span class="sy0">=&gt;</span> <span class="st_h">'database.sqlite'</span><br><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span> <span class="sy0">=</span> EntityManager<span class="sy0">::</span><span class="me2">create</span><span class="br0">(</span><span class="re0">$connectionOptions</span><span class="sy0">,</span> <span class="re0">$config</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<blockquote><p>При работе с <em>Doctrine</em> обязательно используйте метаданные и кэш запросов. <em>Doctrine</em>, к слову сказать, прекрасно оптимизирована для работы с кешем. Основные части <em>Doctrine</em>, которые оптимизированы в плане кеширования — это метаданные, описывающие отображения (кеш метаданных) и процесс преобразования <em>DQL</em> в <em>SQL</em> (кеш запросов). Для работы кеширования необходимо минимум памяти, при этом оно позволяет значительно повысить производительность. Помимо этого рекомендуется использовать кеширование с помощью инструментов вроде <em>APC</em>. Прежде всего, он закеширует ваш байт-код, что будет полезно при любом раскладе. Кроме того, он поставляет высокопроизводительное хранилище прямо в оперативной памяти, в котором можно держать кеши для метаданных и запросов.</p></blockquote>
+<h2><span id="313">3.1.3. Быстрая настройка</span></h2>
+<p>Пример выше — это полноценная настройка всех необходимых параметров <em>Doctrine</em>. Можно упростить этот этап, воспользовавшись одним из предопределенных методов конфигурирования:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">use</span> Doctrine\ORM\Tools\Setup<span class="sy0">;</span><br><span class="kw2">use</span> Doctrine\ORM\EntityManager<span class="sy0">;</span><br><br><span class="re0">$paths</span> <span class="sy0">=</span> <span class="kw3">array</span><span class="br0">(</span><span class="st0">"/path/to/entities-or-mapping-files"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$isDevMode</span> <span class="sy0">=</span> <span class="kw4">false</span><span class="sy0">;</span><br><br><span class="re0">$config</span> <span class="sy0">=</span> Setup<span class="sy0">::</span><span class="me2">createAnnotationMetadataConfiguration</span><span class="br0">(</span><span class="re0">$paths</span><span class="sy0">,</span> <span class="re0">$isDevMode</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span> <span class="sy0">=</span> EntityManager<span class="sy0">::</span><span class="me2">create</span><span class="br0">(</span><span class="re0">$dbParams</span><span class="sy0">,</span> <span class="re0">$config</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Или если вы используете YAML или XML</span><br><span class="re0">$config</span> <span class="sy0">=</span> Setup<span class="sy0">::</span><span class="me2">createXMLMetadataConfiguration</span><span class="br0">(</span><span class="re0">$paths</span><span class="sy0">,</span> <span class="re0">$isDevMode</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span> <span class="sy0">=</span> Setup<span class="sy0">::</span><span class="me2">createYAMLMetadataConfiguration</span><span class="br0">(</span><span class="re0">$paths</span><span class="sy0">,</span> <span class="re0">$isDevMode</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Тут делается несколько предположений:</p>
+<p>Если <em>$devMode</em> установлена в <em>TRUE</em>, в качестве механизма кеширования будет использован стандартный <em>ArrayCache</em>, а параметр  setAutoGenerateProxyClasses будет установлен в <em>TRUE</em> .</p>
+<p>В противном случае, механизм кеширования выбирается в порядке перебора очереди: <em>APC</em>, <em>Xcache</em>, <em>Memcache</em> <em>(127.0.0.1:11211)</em>. <em>setAutoGenerateProxyClasses</em> в этом случае устанавливается в <em>FALSE</em>.</p>
+<p>Если третий аргумент (<em>$proxyDir</em>) отсутствует, будет использован системный каталог для временных файлов.</p>
+<h1><span id="32">3.2. Параметры конфигурации</span></h1>
+<p>Следующие разделы описывают все возможные параметры конфигурации экземпляра класса <em>Doctrine\ORM\Configuration</em>.</p>
+<h2><span id="321">3.2.1. Каталог для прокси (* Обязательно *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setProxyDir</span><span class="br0">(</span><span class="re0">$dir</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getProxyDir</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Тут происходит установка и получение пути к директории, в которой будут храниться сгенерированные Доктриной прокси-классы. Более детальная информация о прокси-классах и их использовании в <em>Doctrine</em> приведена в разделе “Прокси-объекты” далее по тексту.</p>
+<h2><span id="322">3.2.2. Пространства имен для прокси (* Обязательно *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setProxyNamespace</span><span class="br0">(</span><span class="re0">$namespace</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getProxyNamespace</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь указывается какое пространство имен будет использовано для сгенерированных прокси-классов. Более подробное описание приведено в разделе, посвященном прокси-объектам.</p>
+<h2><span id="323">3.2.3. Драйвер метаданных (* Обязательно *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setMetadataDriverImpl</span><span class="br0">(</span><span class="re0">$driver</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getMetadataDriverImpl</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Код выше демонстрирует как определить какой вариант реализации драйвера метаданных будет использован для обработки метаданных в ваших классах.</p>
+<p>Существует 4 разновидности их реализаций:</p>
+<p><em>Doctrine\ORM\Mapping\Driver\AnnotationDriver<br></em><em>Doctrine\ORM\Mapping\Driver\XmlDriver</em><br><em>Doctrine\ORM\Mapping\Driver\YamlDriver</em><br><em>Doctrine\ORM\Mapping\Driver\DriverChain</em></p>
+<p>Во многих примерах к этому руководству используется <em>AnnotationDriver</em>. Для получения информации об использовании драйверов XML и YAML обратитесь к соответствующим разделам.</p>
+<p>Драйвер, работающий с аннотациями настраивается с помощью фабричного метода класса <em>Doctrine\ORM\Configuration</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$driverImpl</span> <span class="sy0">=</span> <span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">newDefaultAnnotationDriver</span><span class="br0">(</span><span class="st_h">'/path/to/lib/MyProject/Entities'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setMetadataDriverImpl</span><span class="br0">(</span><span class="re0">$driverImpl</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь необходимо указать путь к классам сущностей, иначе массовые операции над всеми сущностями, осуществляемые через консоль, не будут работать корректно. Все драйвера метаданных в качестве этого параметра  позволяют указать как одиночную директорию, так и список, это позволит одному единственному драйверу работать с несколькими директориями, в которых лежат сущности.</p>
+<h2><span id="324">3.2.4. Кеш метаданных (* Рекомендуется *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setMetadataCacheImpl</span><span class="br0">(</span><span class="re0">$cache</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getMetadataCacheImpl</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь устанавливается какой механизм будет использоваться для кеширования метаданных, т.е. всей той информации, что вы укажете в аннотациях, через <em>XML</em> или <em>YAML</em>, так что при каждом запросе ее не нужно будет заново парсить и обрабатывать, что весьма накладно. Какую бы реализацию вы не выбрали, она должна наследовать общий для всех интерфейс <em>Doctrine\Common\Cache\Cache</em>.</p>
+<p>Кеширование метаданных очень полезная штука. Нет ни одной адекватной причины, чтобы непользоваться ею.</p>
+<p>Для продакшн-среды рекомендуется использовать следующие механизмы кеширования:</p>
+<p><em>Doctrine\Common\Cache\ApcCache</em><br><em> Doctrine\Common\Cache\MemcacheCache</em><br><em> Doctrine\Common\Cache\XcacheCache</em></p>
+<p>В среде для разработки более предпочтителен <em>Doctrine\Common\Cache\ArrayCache</em>, которые будет постоянно перекешировать данные при каждом запросе.</p>
+<h2><span id="325">3.2.5. Кеш запросов (* Рекомендуется *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setQueryCacheImpl</span><span class="br0">(</span><span class="re0">$cache</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getQueryCacheImpl</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь устанавливается возможная реализация механизма кеширования для <em>DQL</em>-запросов, т.е. для результата разбора самого выражения <em>DQL</em>, которое затем преобразуется в <em>SQL</em> и информацию о том, как обрабатывать набор <em>SQL</em> запросов. Обратите внимание, это не кеш запросов в обычном понимании этого слова, он не затрагивает результаты запроса, так что кеширование не приведет к искажению в данных как это иногда случается. Этот вид кеша создан чисто для оптимизации и не имеет побочных эффектов, кроме разве что небольшого потребления памяти при работе.</p>
+<p>Как и для метаданных, крайне рекомендуется использовать кеш и для запросов.</p>
+<p>На продакшне используйте эти три варианта:</p>
+<p><em>Doctrine\Common\Cache\ApcCache</em><br><em>Doctrine\Common\Cache\MemcacheCache</em><br><em>Doctrine\Common\Cache\XcacheCache</em></p>
+<p>При разработке проще использовать <em>Doctrine\Common\Cache\ArrayCache</em>.</p>
+<h2><span id="326_SQL">3.2.6. Журналирование SQL-запросов (* Опционально *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setSQLLogger</span><span class="br0">(</span><span class="re0">$logger</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getSQLLogger</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Устанавливается регистратор для сохранения всех <em>SQL</em> запросов, исполняемых через <em>Doctrine</em>. Класс регистратора должен определять интерфейс <em>Doctrine\DBAL\Logging\SQLLogger</em>. Самый простой вариант реализации журнала находится в  <em>Doctrine\DBAL\Logging\EchoSQLLogger</em>, он выводит логи на стандартный поток вывода с помощью <em>echo</em> и <em>var_dump</em>.</p>
+<h2><span id="327">3.2.7. Автоматическое создание классов прокси (* Опционально *)</span></h2>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setAutoGenerateProxyClasses</span><span class="br0">(</span><span class="re0">$bool</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getAutoGenerateProxyClasses</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Определяет, следует ли генерировать классы прокси автоматически во время выполнения скрипта. Если поставить <em>FALSE</em>, то классы нужно будет сгененрировать вручную консольной командой с ключом <em>generate-proxies</em>. В продакшн среде крайне рекомендуется отключить авто-генерацию.</p>
+<h1><span id="33__development-_production">3.3. Конфигурация для development- и production- сред</span></h1>
+<p>Инициализация <em>Doctrine 2</em> должна осуществляться двумя способами с использованием двух различных моделей исполнения. На продакшне лучше использовать <em>APC</em> или <em>Memcache</em>, которые имеют много преимуществ в плане производительности. Но при разработке это не совсем то, что нужно, потому что вам не избежать частых ошибок, например, когда вы обновили какую-то сущность, а кеш содержит устаревшие данные. Так что для разработки больше подойдет <em>ArrayCache</em>.</p>
+<p>Помимо этого, на продакшне следует отключить авто-генерацию прокси классов, при разработке же, наоборот, оставить эту возможность. Включенная авто-генерации может негативно влиять на производительность, например, когда несколько прокси классов будут повторно генерироваться во время исполнения скрипта. В этом случае запросы к файловой системе могут даже больше сказаться на производительности, чем сами запросы к базе данных. Кроме того, прокси устанавливает блокировку на файл, что при выполнении нескольких параллельных запросов будет порождать “бутылочные горлышки” .</p>
+<h1><span id="34">3.4. Параметры подключения</span></h1>
+<p>Параметр <em>$connectionOptions</em>, передаваемый в качестве первого аргумента в метод <em>EntityManager::create()</em> может быть массивом либо экземпляром класса <em>Doctrine\DBAL\Connection</em>. Если был передан массив, он сразу же передается в фабричный метод <em>DBAL Doctrine\DBAL\DriverManager::getConnection()</em>. Конфигурация <em>DBAL</em> описана в соответствующем разделе.</p>
+<h1><span id="35">3.5. Объекты прокси</span></h1>
+<p>Прокси — это объект, который может подставляться и использоваться вместо “реального”. С помощью прокси объекта можно незаметно добавить новый функционал к основному объекту, так что самому объекту об этом беспокоиться не нужно. В <em>Doctrine 2</em> объекты прокси используются для реализации некоторых функций, основная из которых — ленивая загрузка.</p>
+<p>Прокси объекты с помощью ленивой загрузки помогают сохранить взаимосвязь между набором объектов, находящимся в памяти и остальными объектами, которые еще не были загружены. Это очень важное свойство, без которого на границах графа ваших объектов будут всегда находится как бы неполноценные объекты, с некоторым количеством оборванных связей.</p>
+<p>В <em>Doctrine 2</em> используется вариация паттерна прокси, которая работает следующим образом: сначала генерируются классы, расширяющие ваши сущности, затем к ним добавляется возможность ленивой загрузки. После этого <em>Doctrine</em> при запросе основного объекта, может вернуть вместо него прокси-версию. Это происходит в двух случаях:</p>
+<h2><span id="351">3.5.1. Прокси для ссылок</span></h2>
+<p>С помощью метода <em>EntityManager#getReference($entityName, $identifier)</em> можно получить ссылку на сущность по заданному идентификатору без ее загрузки из базы данных. Это бывает полезно, например, в целях повышения производительности, когда нужно установить связь с сущностью, зная ее идентификатор. Вы можете просто сделать следующее:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em это EntityManager, $cart это экземпляр класса MyProject\Model\Cart</span><br><span class="co1">// $itemId идентификатор товара, полученный откуда угодно</span><br><span class="re0">$item</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getReference</span><span class="br0">(</span><span class="st_h">'MyProject\Model\Item'</span><span class="sy0">,</span> <span class="re0">$itemId</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$cart</span><span class="sy0">-&gt;</span><span class="me1">addItem</span><span class="br0">(</span><span class="re0">$item</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Смотрите, мы добавляем товар в корзину без его реальной загрузки из базы данных. Если мы вызовем какой-нибудь метод у нашего объекта <em>$item</em>, он будет полностью проинициализирован, его состояние обновится до актуального из базы данных, и это произойдет прозрачно, именно это и называется ленивой загрузкой <em>(lazy-loading)</em>. Здесь <em>$item</em> это не что иное как экземпляр прокси класса, который был сгенерирован для класса <em>Item</em>, но для вас это не должно иметь значения. Просто забейте, работа объектов прокси полностью прозрачна.</p>
+<h2><span id="352">3.5.2. Прокси для связей</span></h2>
+<p>Второй случай, когда <em>Doctrine</em> использует прокси это при запросах на получение объектов. Всякий раз, когда вы запрашиваете объект, имеющий однозначную взаимосвязь с другим объектом, поддерживающим ленивую загрузку, и при этом не используете <em>JOIN</em>, <em>Doctrine</em> заменит все такие объекты их прокси аналогами. Как и остальные прокси объекты, они будут инициализированы при первой же попытке доступа к ним.</p>
+<blockquote><p>Использование соединений <em>JOIN</em> в <em>DQL</em> или <em>SQL</em>, подразумевает “жадную загрузку” всех взаимосвязей. Тем самым для такого запроса будет переопределен параметр <em>“fetch”</em>, установленный в отображении для связи.</p></blockquote>
+<h2><span id="353">3.5.3. Генерация классов прокси</span></h2>
+<p>Классы прокси можно сгенерировать либо вручную через консольную утилиту <em>Doctrine</em>, либо автоматически. Параметр конфигурации, отвечающий за это:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setAutoGenerateProxyClasses</span><span class="br0">(</span><span class="re0">$bool</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getAutoGenerateProxyClasses</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Для большего удобства за параметр по умолчанию принято значение <em>TRUE</em>. Однако, на продакшене в целях повышения производительности лучше отключить эту возможность. Не делайте этого в процессе разработки, т.к. это может породить ошибки, связанные с невозможностью загрузки классов (они не будут найдены), либо загрузки устаревших классов. Например, вы добавили новый метод к сущности, а в прокси классе он пока отсутствует. Чтобы избежать этого, заранее сгенерируйте новые прокси через консоль:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span>.<span class="sy0">/</span>doctrine orm:generate-proxies</div></div>
+<h1><span id="36">3.6. Несколько источников метаданных</span></h1>
+<p>При работе с различными компонентами с помощью <em>Doctrine 2</em>, вы можете применять два разных драйвера метаданных, например <em>XML</em> и <em>YAML</em>. У вас есть возможность объединить эти драйвера с помощью компонента <em>DriverChain</em> на основе пространств имен:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$chain</span> <span class="sy0">=</span> <span class="kw2">new</span> DriverChain<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$chain</span><span class="sy0">-&gt;</span><span class="me1">addDriver</span><span class="br0">(</span><span class="re0">$xmlDriver</span><span class="sy0">,</span> <span class="st_h">'Doctrine\Tests\Models\Company'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$chain</span><span class="sy0">-&gt;</span><span class="me1">addDriver</span><span class="br0">(</span><span class="re0">$yamlDriver</span><span class="sy0">,</span> <span class="st_h">'Doctrine\Tests\ORM\Mapping'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>При этом загрузка определенного пространства имен возлагается на соответствующий драйвер. Драйвер пробегает по всем пространствам имен и ищет совпадения, сравнивая название класса сущности с этим пространством имен при помощью простого выражения <em>strpos() === 0</em>. Поэтому, если дочерние пространства имен используют иные реализации драйвера метаданных для обработки, сами драйвера нужно расположить в определенном порядке.</p>
+<h1><span id="37">3.7. Репозиторий по-умолчанию (* Опционально *)</span></h1>
+<p>Устанавливает полное имя <em>(Fully-Qualified Class Name, FQCN)</em> для дочернего класса <em>EntityRepository</em>. Этот класс будет использован для всех сущностей, у которых отсутствует собственный класс репозитория.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">setDefaultRepositoryClassName</span><span class="br0">(</span><span class="re0">$fqcn</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">getDefaultRepositoryClassName</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>По-умолчанию используется класс <em>Doctrine\ORM\EntityRepository</em>. Каждый класс репозитория необходимо наследовать от <em>EntityRepository</em>, иначе вы получите исключение типа <em>ORMException</em>.</p>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_93543579"></div></div></div>
+
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/02/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/04/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

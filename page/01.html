@@ -1,0 +1,218 @@
+---
+layout: page
+title:  "1. Введение"
+---
+
+
+		<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#11">1.1. Начало</a></li>
+<li><a href="#12">1.2. Достоверность информации</a></li>
+<li><a href="#13_ORM">1.3. Применение ORM</a></li>
+<li><a href="#14">1.4. Требования</a></li>
+<li>
+<a href="#15_Doctrine_2">1.5. Составляющие Doctrine 2</a><ul>
+<li><a href="#151_Common">1.5.1. Библиотека Common</a></li>
+<li><a href="#152_DBAL">1.5.2. Библиотека DBAL</a></li>
+<li><a href="#153_ORM">1.5.3. Библиотека ORM</a></li>
+</ul>
+</li>
+<li>
+<a href="#16">1.6. Установка</a><ul>
+<li><a href="#161_PEAR">1.6.1. PEAR</a></li>
+<li><a href="#162">1.6.2. Загрузка с сайта</a></li>
+<li><a href="#163_GitHub">1.6.3. GitHub</a></li>
+<li><a href="#164_Subversion">1.6.4. Subversion</a></li>
+</ul>
+</li>
+<li>
+<a href="#17">1.7. Песочница</a><ul>
+<li><a href="#171">1.7.1. Обзор</a></li>
+<li><a href="#172">1.7.2. Небольшая обучалка</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1><span id="11">1.1. Начало</span></h1>
+<p><em>Doctrine 2</em> представляет собой хороший пример механизма объектно-реляционного отображения (ORM) для <em>PHP 5.3+</em>, позволяющий работать с базой данных максимально прозрачно, где в качестве промежуточного слоя используются обычные объекты <em>PHP</em>. В качестве основы используется весьма мощный слой абстракции от базы данных (<em>DBAL</em>). Основная задача <em>ORM</em> — связать две концепции: объекты <em>PHP</em> и записи в реляционной базе данных.</p>
+<p>Одна из ключевых особенностей Doctrine — возможность написания запросов на собственном объектно-ориентированном языке, чем-то напоминающим SQL, называемым <em>Doctrine Query Language (DQL)</em>, созданным под вдохновением от <em>Hibernates HQL</em>. Помимо небольших отличий от <em>SQL</em>, он позволяет значительно усилить степень абстракции между объектами и строками базы данных, что позволяет создавать мощные и гибкие запросы, при этом сохраняя целостность.</p>
+<h1><span id="12">1.2. Достоверность информации</span></h1>
+<p>Данный документ представляет собой справочную документацию по <em>Doctrine 2</em>. Руководства для начинающих и обучалки, как это было для <em>Doctrine 1.x</em> будут доступны позднее.</p>
+<h1><span id="13_ORM">1.3. Применение ORM</span></h1>
+<p>Как уже было сказано, задача <em>Doctrine 2</em> — упростить взаимодействие между строками в СУБД и объектной моделью <em>PHP</em>. Так что основной эффект от ее применения может быть достигнут лишь в объектно-ориентированной среде и приложениях, использующих парадигму ООП. В остальных случаях от <em>Doctrine 2</em> будет мало пользы.</p>
+<h1><span id="14">1.4. Требования</span></h1>
+<p><em>Doctrine 2</em> требуется версия <em>PHP</em> не менее <em>5.3.0</em>. Для увеличения производительность рекомендуется использовать модуль <em>APC</em> для <em>PHP</em>.</p>
+<h1><span id="15_Doctrine_2">1.5. Составляющие Doctrine 2</span></h1>
+<p><em>Doctrine 2</em> состоит из трех основных библиотек.</p>
+<ul>
+<li><em>Common</em></li>
+<li>
+<em>DBAL</em> (включает в себя <em>Common</em>)</li>
+<li>
+<em>ORM</em> (включает в себя как <em>DBAL</em>, так и <em>Common</em>)</li>
+</ul>
+<p>Данное руководство в основном относится к пакету <em>ORM</em>, однако иногда будут затронуты и остальные два. Есть определенные причины, по которым <em>Doctrine</em> была разбита на несколько частей:</p>
+<ul>
+<li>Декомпозиция библиотеки дает большую гибкости</li>
+<li>Пакет <em>Common</em> можно использовать отдельно от пакетов <em>ORM</em> и <em>DBAL</em>
+</li>
+<li>
+<em>DBAL</em> можно использовать отдельно от <em>ORM</em>
+</li>
+</ul>
+<h2><span id="151_Common">1.5.1. Библиотека Common</span></h2>
+<p>Этот пакет содержит несколько компонентов, которые не имеют никаких внешних зависимостей, в т.ч. и от PHP. В <em>Common</em> в качестве корневого пространства имен используется <strong>Doctrine\Common</strong>.</p>
+<h2><span id="152_DBAL">1.5.2. Библиотека DBAL</span></h2>
+<p><em>DBAL</em> содержит слой абстракции от БД, в качестве надстройки над библиотекой <em>PDO</em>, однако плотно на ней не завязана. Задача этого слоя — дать один общий API, который покрывает все различия между интерфейсами СУБД. В качестве корневого пространства имен для классов <em>DBAL</em> используется <strong>Doctrine\DBAL</strong>.</p>
+<h2><span id="153_ORM">1.5.3. Библиотека ORM</span></h2>
+<p>Пакет <em>ORM</em> содержит в себе реализацию алгоритма объектно-реляционного отображения, реализуя прозрачные взаимосвязи и отношения для обычных <em>PHP</em> объектов. В<em> ORM</em> в качестве корневого пространства имен используется <strong>Doctrine\ORM</strong>.</p>
+<h1><span id="16">1.6. Установка</span></h1>
+<p>Существует несколько способов установки Doctrine. Ниже будут описаны все возможные варианты, так выбирайте какой вам больше нравится.</p>
+<h2><span id="161_PEAR">1.6.1. PEAR</span></h2>
+<p>Все три части <em>Doctrine</em> можно легко установить из командной строки <em>PEAR</em>.</p>
+<p>Установка только библиотеки <em>Common</em> осуществляется следующей командой:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">sudo</span> pear <span class="kw2">install</span> pear.doctrine-project.org<span class="sy0">/</span>DoctrineCommon-<span class="sy0">&lt;</span>version<span class="sy0">&gt;</span>
+</div></div>
+<p><em>DBAL</em> устанавливается так:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">sudo</span> pear <span class="kw2">install</span> pear.doctrine-project.org<span class="sy0">/</span>DoctrineDBAL-<span class="sy0">&lt;</span>version<span class="sy0">&gt;</span>
+</div></div>
+<p>А <em>ORM</em> так:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">sudo</span> pear <span class="kw2">install</span> pear.doctrine-project.org<span class="sy0">/</span>DoctrineORM-<span class="sy0">&lt;</span>version<span class="sy0">&gt;</span>
+</div></div>
+<p>Тэг <em>&lt;version&gt;</em> представляет собой номер версии, которую нужно установить. Например, если текущая версия <em>ORM 2.07</em>, то команда будет выглядеть так:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">sudo</span> pear <span class="kw2">install</span> pear.doctrine-project.org<span class="sy0">/</span>DoctrineORM-2.0.7</div></div>
+<p>Когда установка будет завершена, вам нужно будет подключить загрузчик классов <em>ClassLoader</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw1">require</span> <span class="st_h">'Doctrine/ORM/Tools/Setup.php'</span><span class="sy0">;</span><br><br>
+Doctrine\ORM\Tools\Setup<span class="sy0">::</span><span class="me2">registerAutoloadPEAR</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Все установленные библиотеки будут находится в корневой директории <em>PEAR</em> в подкаталоге <em>Doctrine/</em>. Помимо этого, вы получите в свое распоряжении небольшую утилиту командной строки, с ее помощью вы будете выполнять типовые задачи. Запустите команду <em>doctrine</em> без параметров, чтобы просмотреть доступные ключи запуска:</p>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="text codecolorer">$ doctrine<br>
+Doctrine Command Line Interface version 2.0.0BETA3-DEV<br><br>
+Usage:<br>
+  [options] command [arguments]<br><br>
+Options:<br>
+  --help -h Display this help message.<br>
+  --quiet -q Do not output any message.<br>
+  --verbose -v Increase verbosity of messages.<br>
+  --version -V Display this program version.<br>
+  --color -c Force ANSI color output.<br>
+  --no-interaction -n Do not ask any interactive question.<br><br>
+Available commands:<br>
+  help Displays help for a command (?)<br>
+  list Lists commands<br>
+dbal<br>
+  :import Import SQL file(s) directly to Database.<br>
+  :run-sql Executes arbitrary SQL directly from the command line.<br>
+orm<br>
+  :convert-d1-schema Converts Doctrine 1.X schema into a Doctrine 2.X schema.<br>
+  :convert-mapping Convert mapping information between supported formats.<br>
+  :ensure-production-settings Verify that Doctrine is properly configured for a production  environment.<br>
+  :generate-entities Generate entity classes and method stubs from your mapping information.<br>
+  :generate-proxies Generates proxy classes for entity classes.<br>
+  :generate-repositories Generate repository classes from your mapping information.<br>
+  :run-dql Executes arbitrary DQL directly from the command line.<br>
+  :validate-schema Validate that the mapping files.<br>
+orm:clear-cache<br>
+  :metadata Clear all metadata cache of the various cache drivers.<br>
+  :query Clear all query cache of the various cache drivers.<br>
+  :result Clear result cache of the various cache drivers.<br>
+orm:schema-tool<br>
+  :create Processes the schema and either create it directly on EntityManager Storage Connection or generate the SQL output.<br>
+  :drop Processes the schema and either drop the database schema of EntityManager Storage Connection or generate the SQL output.<br>
+  :update Processes the schema and either update the database schema of EntityManager Storage Connection or generate the SQL output.</div></div>
+<h2><span id="162">1.6.2. Загрузка с сайта</span></h2>
+<p><em>Doctrine 2</em> можно также установить, скачав последнюю версию пакета со <a href="http://www.doctrine-project.org/downloads" onclick="javascript:_gaq.push(['_trackEvent','outbound-article','http://www.doctrine-project.org']);">страницы загрузки</a>.</p>
+<p>Настройка и инициализация этой версии <em>Doctrine</em> описываются в разделе <a href="http://odiszapc.ru/doctrine/configuration">Настройка</a> данного руководства.</p>
+<h2><span id="163_GitHub">1.6.3. GitHub</span></h2>
+<p>В качестве альтернативы можно загрузить последнюю версию Doctrine 2 с GitHub.com:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">git clone</span> git:<span class="sy0">//</span>github.com<span class="sy0">/</span>doctrine<span class="sy0">/</span>doctrine2.git doctrine</div></div>
+<p>Но, таким образом, у вас будут только исходные коды для пакета <em>ORM</em>. Для пакетов <em>Common</em> и <em>DBAL</em> нужно будет отдельно инициализировать дочерние модули:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">$ <span class="kw2">git submodule</span> init<br>
+$ <span class="kw2">git submodule</span> update</div></div>
+<p>Этот финт обновит вашу рабочую копию для использования <em>Doctrine</em> и тех версий ее дочерних библиотек, которые подходят к клонированной master-ветви <em>Doctrine 2</em>.</p>
+<p>В разделе <a href="http://odiszapc.ru/doctrine/configuration">Настройка</a> описано как настроить установленную с <em>Github</em> версию <em>Doctrine</em> для использования автозагрузки классов.</p>
+<blockquote><p>Не стоит пытаться совместно использовать модули Doctrine-Common, Doctrine-DBAL и Doctrine-ORM, полученные из основной ветви репозитория. ORM просто может не захотеть работать с текущими версиями Common и DBAL из основной ветви. Вместо этого используйте Git Submodules</p></blockquote>
+<h2><span id="164_Subversion">1.6.4. Subversion</span></h2>
+<blockquote><p>Не рекомендуется использовать зеркала Subversion. Они предоставят доступ только к последнему коммиту основной ветви и не загрузят дочерние модули.</p></blockquote>
+<p>Если вы предпочитаете <em>Subversion</em>, код можно получить как и раньше с <em>GitHub.com</em> по протоколу <em>Subversion</em>:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span><span class="kw2">svn co</span> http:<span class="sy0">//</span>svn.github.com<span class="sy0">/</span>doctrine<span class="sy0">/</span>doctrine2.git doctrine2</div></div>
+<p>Однако, так вы получите лишь основную ветвь <em>Doctrine 2</em>, без зависимых модулей <em>Common</em> и <em>DBAL</em>. Их вам придется получить самостоятельно, но тут есть риск столкнуться с несовместимостью версий разных master-ветвей этих библиотек, о чем уже было сказано ранее.</p>
+<h1><span id="17">1.7. Песочница</span></h1>
+<blockquote><p>Песочница доступна только в версии Doctrine 2, полученной из репозитория GitHub либо в ближайшее время будет доступна в качестве отдельного пакета на <a href="http://www.doctrine-project.org/projects/orm/download" onclick="javascript:_gaq.push(['_trackEvent','outbound-article','http://www.doctrine-project.org']);">странице загрузки</a> (на сегодняшний день (11.02.12) отдельного пакета с песочницей нет на странице загрузки). Вы найдете ее в каталоге $root/tools/sandbox folder.</p></blockquote>
+<p>Песочница представляет собой настроенное и готовое к работе окружение для проведения разных экспериментов или с целью просто поиграться с <em>Doctrine 2</em>.</p>
+<h2><span id="171">1.7.1. Обзор</span></h2>
+<p>Каталог с песочницей имеет следующую структуру:</p>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">sandbox/<br>
+    Entities/<br>
+        Address.php<br>
+        User.php<br>
+    xml/<br>
+        Entities.Address.dcm.xml<br>
+        Entities.User.dcm.xml<br>
+    yaml/<br>
+        Entities.Address.dcm.yml<br>
+        Entities.User.dcm.yml<br>
+    cli-config.php<br>
+    doctrine<br>
+    doctrine.php<br>
+    index.php</div></div>
+<p>Ниже краткое описание того, какие директории и файлы за что отвечают:</p>
+<p>В каталоге <em>Entities</em> будут располагаться классы ваших моделей-сущностей. В качестве примера там уже лежат две сущности.</p>
+<p>В каталоге <em>xml</em> находятся описания сущностей в формате XML (если, конечно, вы предпочтете этот формат для их описания). Тут тоже есть два примера их использования.</p>
+<p>Каталог <em>yaml</em> — то же самое, но для формата YAML.</p>
+<p>Файл <em>cli-config.php</em> содержит код инициализации, необходимый для консольной утилиты.</p>
+<p><em>doctrine/doctrine.php</em> — это утилита командной строки.</p>
+<p>index.php — обычный индексный файл приложения на PHP, в котором используется <em>Doctrine 2</em>.</p>
+<h2><span id="172">1.7.2. Небольшая обучалка</span></h2>
+<p>Выполните следующую команду из директории <em>tools/sandbox</em>:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">$ php doctrine orm:schema-tool:create<br>
+Creating database schema... Database schema created successfully<span class="sy0">!</span>
+</div></div>
+<p>Еще раз взгляните на каталог <em>tools/sandbox</em>. Внутри появилась новая база данных <em>SQLite</em> под названием <em>database.sqlite</em>.</p>
+<p>Откройте <em>index.php</em> и в самом низу добавьте несколько строк кода, что-то вроде этого:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">//... bootstrap stuff</span><br><br><span class="co2">## PUT YOUR TEST CODE BELOW<br></span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="kw2">new</span> \Entities\User<span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setName</span><span class="br0">(</span><span class="st_h">'Garfield'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="kw1">echo</span> <span class="st0">"User saved!"</span><span class="sy0">;</span>
+</div></div>
+<p>Запустите <em>index.php</em> через браузер или из командной строки. На экране появится строка “User saved!”.</p>
+<p>Теперь давайте заглянем в наше хранилище <em>SQLite</em>. Снова выполните команду из папки <em>tools/sandbox</em>:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="co4">$ </span>php doctrine dbal:run-sql “<span class="kw1">select</span> <span class="sy0">*</span> from <span class="kw2">users</span>”</div></div>
+<p>Результат выполнения:</p>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">array(1) {<br>
+  [0]=&gt;<br>
+  array(2) {<br>
+    ["id"]=&gt;<br>
+    string(1) "1"<br>
+    ["name"]=&gt;<br>
+    string(8) "Garfield"<br>
+  }<br>
+}</div></div>
+<p>Поздравляем, вы только что сохранили в базе <em>SQLite</em>  вашу первую сущность с автоматически сгенерированным ID.</p>
+<p>Теперь внесите следующие правки в <em>index.php</em>:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">
+<span class="sy0">&lt;</span>?php<br><span class="sy0">//</span>... bootstrap stuff<br><br><span class="co0">## PUT YOUR TEST CODE BELOW</span><br><br><span class="re1">$q</span> = <span class="re1">$em</span>-<span class="sy0">&gt;</span>createQuery<span class="br0">(</span><span class="st_h">'select u from Entities\User u where u.name = ?1'</span><span class="br0">)</span>;<br><span class="re1">$q</span>-<span class="sy0">&gt;</span>setParameter<span class="br0">(</span><span class="nu0">1</span>, <span class="st_h">'Garfield'</span><span class="br0">)</span>;<br><span class="re1">$garfield</span> = <span class="re1">$q</span>-<span class="sy0">&gt;</span>getSingleResult<span class="br0">(</span><span class="br0">)</span>;<br><br><span class="kw3">echo</span> <span class="st0">"Hello "</span> . <span class="re1">$garfield</span>-<span class="sy0">&gt;</span>getName<span class="br0">(</span><span class="br0">)</span> . <span class="st0">"!"</span>;</div></div>
+<p>Вы создали свой первый <em>DQL</em>-запрос для получения из базы данных пользователя с именем ‘Garfield’. Безусловно, это можно было сделать и более простым способом, мы лишь хотели продемонстрировать сам <em>DQL</em>. Догадаетесь как это можно сделать проще?</p>
+<p>Когда вы создаете новые классы моделей или изменяете существующе, можно перестроить схему базы данных с помощью двух последовательных команд: команды <strong>doctrine orm:schema-tool –drop</strong> для удаления базы (будьте внимательны) а затем <strong>doctrine orm:schema-tool –create</strong> для создание новой схемы.</p>
+<p>Изучайте Doctrine 2!</p>
+<p>Помимо чтения документации, рекомендуем вам пройти <a href="http://www.doctrine-project.org/docs/orm/2.1/en/tutorials/getting-started-xml-edition.html" onclick="javascript:_gaq.push(['_trackEvent','outbound-article','http://www.doctrine-project.org']);">вводный курс для начинающих</a>. <em>(перевод готовится)</em></p>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_72709344"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/00/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/02/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

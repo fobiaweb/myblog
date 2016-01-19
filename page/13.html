@@ -1,0 +1,819 @@
+---
+layout: page
+title:  "13. Язык DQL – Doctrine Query Language"
+---
+
+
+		
+<p><em></em><em>Doctrine Query Language (DQL) – </em>данное семейство запросов производное от языка <em>Object Query Language</em>, который в свою очередь чем-то напоминает такие грамматики как <em>Hibernate Query Language (HQL)</em> и <em>Java Persistence Query Language (JPQL)</em>.</p>
+<p>С помощью DQL можно строить довольно мощные запросы к существующим объектным моделям. Представьте себе, что все объекты у вас хранятся в некотором хранилище (что-то вроде объектной базы данных), и с помощью DQL запросов вы обращаетесь к этому хранилищу с целью получить необходимое вам подмножество объектов.</p>
+<blockquote><p>Типичная ошибка новичков состоит в том, что они думают о DQL как об очередной форме SQL, пытаясь вставлять в запросы имена таблиц и столбцов, или же JOIN’ить таблицы друг с другом. Так что имейте ввиду, DQL — это язык запросов только для объектной модели, для реляционных движняков он не подходит.</p></blockquote>
+<p>DQL не чувствителен к регистру символов за исключением пространств имен, названий классов и их полей.</p>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#131_DQL">13.1. Типы DQL запросов</a></li>
+<li>
+<a href="#132_SELECT">13.2. Запросы SELECT</a><ul>
+<li><a href="#1321_DQL_SELECT">13.2.1. DQL SELECT</a></li>
+<li><a href="#1322_JOIN">13.2.2. JOIN</a></li>
+<li><a href="#1323">13.2.3. Именованные и позиционные параметры</a></li>
+<li>
+<a href="#1324_DQL_SELECT">13.2.4. Примеры DQL SELECT</a><ul><li><a href="#13241_partial">13.2.4.1. Синтаксис partial объектов</a></li></ul>
+</li>
+<li><a href="#1325_INDEX_BY">13.2.5. Использование INDEX BY</a></li>
+</ul>
+</li>
+<li><a href="#133_UPDATE">13.3. Запросы UPDATE</a></li>
+<li><a href="#134_DELETE">13.4. Запросы DELETE</a></li>
+<li>
+<a href="#135">13.5. Функции, операторы и аггрегации</a><ul>
+<li><a href="#1351__DQL">13.5.1. Функции в DQL</a></li>
+<li><a href="#1352">13.5.2. Арифметические операторы</a></li>
+<li><a href="#1353">13.5.3. Агрегатные функции</a></li>
+<li><a href="#1354">13.5.4. Другие выражения</a></li>
+<li><a href="#1355">13.5.5. Создание пользовательских функций</a></li>
+</ul>
+</li>
+<li>
+<a href="#136">13.6. Запросы к унаследованным классам</a><ul>
+<li><a href="#1361">13.6.1. Одиночная таблица</a></li>
+<li><a href="#1362_Class_Table_Inheritance">13.6.2. Class Table Inheritance</a></li>
+</ul>
+</li>
+<li><a href="#137_Query">13.7. Класс Query</a></li>
+<li>
+<a href="#1371">13.7.1. Форматы результата запросов</a><ul>
+<li><a href="#1372_Pure__Mixed">13.7.2. Простые (Pure) и смешанные (Mixed) результаты</a></li>
+<li><a href="#1373___FROM">13.7.3. Несколько сущностей в предложени FROM</a></li>
+<li>
+<a href="#1374">13.7.4. Методы гидрации</a><ul>
+<li><a href="#13741_Object_Hydration">13.7.4.1. Object Hydration</a></li>
+<li><a href="#13742_Array_Hydration">13.7.4.2. Array Hydration</a></li>
+<li><a href="#13743_Scalar_Hydration">13.7.4.3. Scalar Hydration</a></li>
+<li><a href="#13744_Single_Scalar_Hydration">13.7.4.4. Single Scalar Hydration</a></li>
+<li><a href="#13745">13.7.4.5. Пользовательские режимы гидрации</a></li>
+</ul>
+</li>
+<li><a href="#1375">13.7.5. Итерирование по огромным результирующим наборам</a></li>
+<li>
+<a href="#1376">13.7.6. Функции</a><ul>
+<li><a href="#13761">13.7.6.1. Параметры</a></li>
+<li><a href="#13762_API">13.7.6.2. API для управление кешем</a></li>
+<li><a href="#13763">13.7.6.3. Подсказки</a></li>
+<li><a href="#13764___DQL">13.7.6.4. Кеш запросов (только для DQL запросов)</a></li>
+<li><a href="#13765_____DQL">13.7.6.5. Первый и максимальный элементы в результирующем наборе (только для DQL)</a></li>
+<li><a href="#13766___DQL">13.7.6.6. Временное изменение режима выборки в DQL</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<a href="#138_EBNF">13.8. EBNF</a><ul>
+<li><a href="#1381_Document_syntax">13.8.1. Document syntax:</a></li>
+<li><a href="#1382_Terminals">13.8.2. Terminals</a></li>
+<li><a href="#1383_Query_Language">13.8.3. Query Language</a></li>
+<li><a href="#1384_Statements">13.8.4. Statements</a></li>
+<li><a href="#1385_Identifiers">13.8.5. Identifiers</a></li>
+<li><a href="#1386_Path_Expressions">13.8.6. Path Expressions</a></li>
+<li><a href="#1387_Clauses">13.8.7. Clauses</a></li>
+<li><a href="#1388_Items">13.8.8. Items</a></li>
+<li><a href="#1389_From_Join_and_Index_by">13.8.9. From, Join and Index by</a></li>
+<li><a href="#13810_Select_Expressions">13.8.10. Select Expressions</a></li>
+<li><a href="#13811_Conditional_Expressions">13.8.11. Conditional Expressions</a></li>
+<li><a href="#13812_Collection_Expressions">13.8.12. Collection Expressions</a></li>
+<li><a href="#13813_Literal_Values">13.8.13. Literal Values</a></li>
+<li><a href="#13814_Input_Parameter">13.8.14. Input Parameter</a></li>
+<li><a href="#13815_Arithmetic_Expressions">13.8.15. Arithmetic Expressions</a></li>
+<li><a href="#13816_Scalar_and_Type_Expressions">13.8.16. Scalar and Type Expressions</a></li>
+<li><a href="#13817_Aggregate_Expressions">13.8.17. Aggregate Expressions</a></li>
+<li><a href="#13818">13.8.18. Условия</a></li>
+<li><a href="#13819">13.8.19. Другие выражения</a></li>
+<li><a href="#13820">13.8.20. Функции</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1><span id="131_DQL">13.1. Типы DQL запросов</span></h1>
+<p>В DQL присутствуют такие конструкции как SELECT, UPDATE и DELETE, они аналогичны своим собратьям из мира SQL. Операция INSERT отсутствуют, потому что для согласованности объектной модели все сущности и связи заводятся под управление ORM через вызов <strong>EntityManager#persist()</strong> и способа вставлять из в базу напрямую не предусмотрено, да он и не нужен.</p>
+<p>Запрос SELECT умеет вытаскивать какие-то определенные куски из вашей доменной модели, к которым нельзя получить доступ при помощь связей. В дополнение к этому, такие запросы позволяют запрашивать сущности вместе с полным набором связей с помощью единственного SQL запроса, что не может не радовать.</p>
+<p>С помощью запросов UPDATE и DELETE можно выполнять пакетные обновления и удаления сущностей из доменной модели. Это бывает весьма полезно, ведь не всегда есть возможность загрузить в память полный набор сущностей для их последующего изменения.</p>
+<h1><span id="132_SELECT">13.2. Запросы SELECT</span></h1>
+<h2><span id="1321_DQL_SELECT">13.2.1. DQL SELECT</span></h2>
+<p>Выражение SELECT определяет какие данные появятся в результатах запроса (кто-бы мог подумать, епта). Композиция различных выражений в запросе SELECT также может влиять на природу результатов запроса.</p>
+<p>Пример ниже производит выборку пользователей старше 20 лет:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM MyProject\Model\User u WHERE u.age &gt; 20'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Давайте рассмотрим это запрос:</p>
+<ul>
+<li>
+<strong>u</strong> — это синоним, указывающий на класс <em>MyProject\Model\User</em>. Помещая этот алиас в выражение <em>SELECT</em> мы тем самым указываем, что нам нужно получить все экземпляры именно класса User.</li>
+<li>За ключевым словом FROM всегда следует полное имя класса, за которым в свою очередь следует алиас для этого класса. Класс это своего рода корень запроса, от которого далее можно перемещаться с помощью JOIN’ов (будет описано позднее) и различных путевых выражений <strong>(path expressions)</strong>.</li>
+<li>Выражение <strong>u.age</strong> в блоке WHERE это и есть путевое выражение. Их легко найти по оператору ‘.’, используемого для формирования путей. Выражение <strong>u.age</strong> указывает на поле age класса User.</li>
+</ul>
+<p>Результатом этого запроса будет список объектов User, все пользователи в котором старше 20 лет.</p>
+<p>Внутри выражения SELECT можно указывать как ключевые поля класса для загрузки всей сущности, так и лишь некоторые из них с помощью синтаксиса <strong>u.name</strong>. Можно комбинировать эти способы, а также применять к ним функции агрегации DQL. Числовые поля также могут использоваться в математических операциях. Для дополнительной информации смотрите разделы <a href="http://odiszapc.ru/doctrine/dql-doctrine-query-language/#135">Функции, операторы и агрегации</a>.</p>
+<h2><span id="1322_JOIN">13.2.2. JOIN</span></h2>
+<p>Запрос SELECT может содержать JOIN’ы двух типов: “Regular” и “Fetch”.</p>
+<p>Regular Joins: используются с целью фильтрации результатов запросов, а также вычисления агрегированных значений.</p>
+<p>Fetch Joins: Похожи на обычные JOIN’ы, но дополнительно вытаскивают из базы все связанные сущности и включают их в результат запроса.</p>
+<p>Не существует какого-то ключевого слова, которое бы говорило о том какой из JOIN’ов использовать. JOIN, будь то INNER JOIN или OUTER JOIN, будет трактоваться как “Fetch JOIN” если поля подключаемой через JOIN сущности появятся в SELECT-части DQL запроса вне какой-либо агрегатной функции. В противном случае это будет обычный (regular) JOIN.</p>
+<p>Пример:</p>
+<p>Обычные JOIN по полю адреса:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u FROM User u JOIN u.address a WHERE a.city = 'Berlin'"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Fetch-JOIN по адресу:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u, a FROM User u JOIN u.address a WHERE a.city = 'Berlin'"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Когда Doctrine строит результат для запроса с Fetch-JOIN’ами, на первом уровне результирующего массива будет расположен класс из выражения FROM. В предыдущем примере будет возвращен массив экземпляров класса User, при этом в каждый экземпляр будет добавлена переменная <strong>User#address</strong>. Когда вы обратитесь к этой переменной Doctrine не нужно будет дополнительно подгружать всю связь с помощью другого запроса, нет необходимости использоваться здесь <em>Lazy loading</em>.</p>
+<blockquote><p>Тем не менее Doctrine дает возможность ссылаться на любые доступные связи между объектами доменной модели. Объекты, которые не были загружены из БД заменяются на экземпляры прокси-классов, для их загрузки будет использоваться “ленивая загрузка”. С коллекциями все аналогично — они будут загружены с помощью lazy-loading при первом доступе к ним. Помните, использование lazy-loading ведет к том, что база данных будет бомбардироваться кучей мелких запросов, что безусловно может отрицательно сказаться на производительности приложения. И Fetch-JOIN’ы как раз таки и позволяют избежать этого — они загрузят всю нужную вам ветку сущностей с помощью единственного SELECT запроса.</p></blockquote>
+<h2><span id="1323">13.2.3. Именованные и позиционные параметры</span></h2>
+<p>DQL поддерживает два типа параметров: именованные и позиционные. Однако, в отличие от многих SQL-грамматик, здесь позиционные параметры задаются с помощью чисел, например ”?1”, ”?2” и т.д. Именованные параметры задаются в виде ”:name1”, ”:name2” и т.д.</p>
+<p>Когда нужно сослаться на параметр в методе <strong>Query#setParameter($param, $value)</strong>, то оба типа параметров нужно указывать без префиксов.</p>
+<h2><span id="1324_DQL_SELECT">13.2.4. Примеры DQL SELECT</span></h2>
+<p>Этот раздел содержит большой набор различных DQL запросов с комментариями. Фактический результат также зависит от режима <strong>hydrations</strong> (черт побьери, кто-нибудь знает адекватный аналог этого слова на русском).</p>
+<p>Запросив все сущности класса <strong>User</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer"> <span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов класса User</span>
+</div></div>
+<p>Получение первичных ключей (ID) всех CmsUsers:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.id FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$ids</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив идентификаторов CmsUser</span>
+</div></div>
+<p>Получение идентификаторов всею юзеров, написавших хотя бы одну статью:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer"> <span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT DISTINCT u.id FROM CmsArticle a JOIN a.user u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$ids</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив идентификаторов CmsUser</span>
+</div></div>
+<p>Получение всех статей, отсортированных по имени автора:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT a FROM CmsArticle a JOIN a.user u ORDER BY u.name ASC'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$articles</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массих объектов CmsArticle</span>
+</div></div>
+<p>Получение полей Username и Name класса CmsUser:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.username, u.name FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResults</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив значение полей username и name класса CmsUser</span><br><span class="kw1">echo</span> <span class="re0">$users</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="br0">[</span><span class="st_h">'username'</span><span class="br0">]</span><span class="sy0">;</span>
+</div></div>
+<p>Получение объектов ForumUser и связанной с ними сущности:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u, a FROM ForumUser u JOIN u.avatar a'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser с загруженной связью avatar</span><br><span class="kw1">echo</span> <span class="kw3">get_class</span><span class="br0">(</span><span class="re0">$users</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="sy0">-&gt;</span><span class="me1">getAvatar</span><span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Получение объекта CmsUser с полной загрузкой всех его телефонных номеров:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u, p FROM CmsUser u JOIN u.phonenumbers p'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов CmsUser с загруженной связью phonenumbers</span><br><span class="re0">$phonenumbers</span> <span class="sy0">=</span> <span class="re0">$users</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="sy0">-&gt;</span><span class="me1">getPhonenumbers</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Сортировка по возрастанию:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM ForumUser u ORDER BY u.id ASC'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>Сортировка по убыванию:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer"> <span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM ForumUser u ORDER BY u.id DESC'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>Аггрегатные функции:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT COUNT(u.id) FROM Entities\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$count</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getSingleScalarResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u, count(g.id) FROM Entities\User u JOIN u.groups g GROUP BY u.id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Выражение WHERE и позиционные параметры:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM ForumUser u WHERE u.id = ?1'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">321</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>Предложение WHERE и именованные параметры:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM ForumUser u WHERE u.username = :name'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="st_h">'name'</span><span class="sy0">,</span> <span class="st_h">'Bob'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// array of ForumUser objects</span>
+</div></div>
+<p>Вложенные условия в предложении WHERE:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u from ForumUser u WHERE (u.username = :name OR u.username = :name2) AND u.id = :id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameters</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><br>
+    <span class="st_h">'name'</span> <span class="sy0">=&gt;</span> <span class="st_h">'Bob'</span><span class="sy0">,</span><br>
+    <span class="st_h">'name2'</span> <span class="sy0">=&gt;</span> <span class="st_h">'Alice'</span><span class="sy0">,</span><br>
+    <span class="st_h">'id'</span> <span class="sy0">=&gt;</span> <span class="nu0">321</span><span class="sy0">,</span><br><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>COUNT DISTINCT:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT COUNT(DISTINCT u.name) FROM CmsUser'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>Арифметическое выражение:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u WHERE ((u.id + 5000) * u.id + 3) &lt; 10000000'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив объектов ForumUser</span>
+</div></div>
+<p>Получение идентификаторов пользователей и статей, если они есть при помощи LEFT JOIN:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.id, a.id as article_id FROM CmsUser u LEFT JOIN u.articles a'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$results</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// array of user ids and every article_id for each user</span>
+</div></div>
+<p>Дополнительные условия в JOIN:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u FROM CmsUser u LEFT JOIN u.articles a WITH a.topic LIKE '<span class="es6">%f</span>oo%'"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Использование нескольких Fetch-JOIN’ов:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u, a, p, c FROM CmsUser u JOIN u.articles a JOIN u.phonenumbers p JOIN a.comments c'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Выражение BETWEEN:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.name FROM CmsUser u WHERE u.id BETWEEN ?1 AND ?2'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">123</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">2</span><span class="sy0">,</span> <span class="nu0">321</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$usernames</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Использование функций DQL в выражении WHERE:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u.name FROM CmsUser u WHERE TRIM(u.name) = 'someone'"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$usernames</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Выражение IN():</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.name FROM CmsUser u WHERE u.id IN(46)'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$usernames</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u WHERE u.id IN (1, 2)'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u WHERE u.id NOT IN (1)'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Функция CONCAT():</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u.id FROM CmsUser u WHERE CONCAT(u.name, 's') = ?1"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'Jess'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$ids</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT CONCAT(u.id, u.name) FROM CmsUser u WHERE u.id = ?1'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">321</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$idUsernames</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Ключевое слово EXISTS и связанный с ним подзапрос:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.id FROM CmsUser u WHERE EXISTS (SELECT p.phonenumber FROM CmsPhonenumber p WHERE p.user = u.id)'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$ids</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Получение всех пользователей, являющихся членами группы <strong>$group</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u.id FROM CmsUser u WHERE :groupId MEMBER OF u.groups'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="st_h">'groupId'</span><span class="sy0">,</span> <span class="re0">$group</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$ids</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Получение всех пользователей, имеющих более одного телефонного номера:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u WHERE SIZE(u.phonenumbers) &gt; 1'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Пользователи, не имеющие ни одного номера:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u WHERE u.phonenumbers IS EMPTY'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Выборка с учетом иерархии наследования, в примере ниже показано получение экземпляров заданного класса, являющихся потомками другого класса:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM Doctrine\Tests\Models\Company\CompanyPerson u WHERE u INSTANCE OF Doctrine\Tests\Models\Company\CompanyEmployee'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM Doctrine\Tests\Models\Company\CompanyPerson u WHERE u INSTANCE OF ?1'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM Doctrine\Tests\Models\Company\CompanyPerson u WHERE u NOT INSTANCE OF ?1'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h3><span id="13241_partial">13.2.4.1. Синтаксис partial объектов</span></h3>
+<p>Обычно когда вы запрашиваете не все, а только какие-то определенные поля, нет необходимости вытаскивать весь объект. Вместо этого, можно запросить только массив в виде обычного плоского набора, аналогично тому как если бы для получения данных вы использовали напрямую язык SQL вместе с JOIN.</p>
+<p>Когда нужно получить <strong>partial</strong> объекты, нужно использовать одноименное ключевое слово:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT partial u.{id, username} FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив неполных объектов CmsUser</span>
+</div></div>
+<p>Аналогично это работает и с JOIN’ами:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT partial u.{id, username}, partial a.{id, name} FROM CmsUser u JOIN u.articles a'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// массив неполных объектов CmsUser</span>
+</div></div>
+<h2><span id="1325_INDEX_BY">13.2.5. Использование INDEX BY</span></h2>
+<p>Конструкция INDEX BY никак не транслируется в SQL, она затрагивает лишь объекты и генерацию результирующего набора. Что именно имеется ввиду? После предложение FROM и JOIN можно указать по какому полю будет индексироваться этот класс в результирующем наборе. По умолчанию в качестве ключей выступают целочисленные инкрементные значения начиная с нуля. Но с помощью INDEX BY можно назначить любую колонку в качестве ключа, хотя делать это имеет смысл только для первичных или уникальных ключей:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">.</span>id<span class="sy0">,</span> u<span class="sy0">.</span><span class="kw1">STATUS</span><span class="sy0">,</span> <span class="kw1">UPPER</span><span class="br0">(</span>u<span class="sy0">.</span>name<span class="br0">)</span> nameUpper <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">INDEX</span> <span class="kw1">BY</span> u<span class="sy0">.</span>id<br><span class="kw1">JOIN</span> u<span class="sy0">.</span>phonenumbers p <span class="kw1">INDEX</span> <span class="kw1">BY</span> p<span class="sy0">.</span>phonenumber</div></div>
+<p>Такой запрос возвратит набор, индексированный сразу по <strong>user.id</strong> и <strong>phonenumber.id</strong>:</p>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">array<br>
+  0 =&gt;<br>
+    array<br>
+      1 =&gt;<br>
+        object(stdClass)[299]<br>
+          public '__CLASS__' =&gt; string 'Doctrine\Tests\Models\CMS\CmsUser' (length=33)<br>
+          public 'id' =&gt; int 1<br>
+          ..<br>
+      'nameUpper' =&gt; string 'ROMANB' (length=6)<br>
+  1 =&gt;<br>
+    array<br>
+      2 =&gt;<br>
+        object(stdClass)[298]<br>
+          public '__CLASS__' =&gt; string 'Doctrine\Tests\Models\CMS\CmsUser' (length=33)<br>
+          public 'id' =&gt; int 2<br>
+          ...<br>
+      'nameUpper' =&gt; string 'JWAGE' (length=5)</div></div>
+<h1><span id="133_UPDATE">13.3. Запросы UPDATE</span></h1>
+<p>DQL умеет не только получать данные, но и менять их (кто бы мог подумать). Работа оператора UPDATE полностью предсказуема и работает как показано в примере ниже:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">UPDATE</span> MyProject\Model\<span class="kw1">USER</span> u <span class="kw1">SET</span> u<span class="sy0">.</span>password <span class="sy0">=</span> <span class="st0">'new'</span> <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="kw1">IN</span> <span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">2</span><span class="sy0">,</span> <span class="nu0">3</span><span class="br0">)</span>
+</div></div>
+<p>Ссылаться на связанные сущность можно только в предложении WHERE или используя под-запросы.</p>
+<blockquote><p>DQL UPDATE транслируется напрямую в SQL UPDATE и, таким образом, обходит любые схемы блокировки, события и не увеличивает номер версии. Сущности, которые были ранее загружены из базы и являются PERSISTED-сущностями, не будут автоматически синхронизированы с актуальными данными в базе. Чтобы сделать это рекомендуется каждый раз вызывать метод <strong>EntityManager#clear()</strong> и заново получать экземпляры затронутой сущности.</p></blockquote>
+<h1><span id="134_DELETE">13.4. Запросы DELETE</span></h1>
+<p>Запросы DELETE имеют такой же простой синтаксис как и UPDATE:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">DELETE</span> MyProject\Model\<span class="kw1">USER</span> u <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="sy0">=</span> <span class="nu0">4</span>
+</div></div>
+<p>На связанные сущности накладывается такие же ограничения.</p>
+<blockquote><p>DQL запросы DELETE транслируются напрямую в одноименный SQL, исключая, т.о., реакцию на события и выполнение проверки для столбца с версией, если они не были явно добавлены в предложение WHERE. Кроме того, удаление не распространяется каскадно на связанные сущности, даже если это явно указано в метаданных.</p></blockquote>
+<h1><span id="135">13.5. Функции, операторы и аггрегации</span></h1>
+<h2><span id="1351__DQL">13.5.1. Функции в DQL</span></h2>
+<p>В предложениях SELECT, WHERE и HAVING поддерживаются следующие функции:</p>
+<ul>
+<li>ABS(arithmetic_expression)</li>
+<li>CONCAT(str1, str2)</li>
+<li>CURRENT_DATE() – текущая дата</li>
+<li>CURRENT_TIME() – текущее время</li>
+<li>CURRENT_TIMESTAMP()</li>
+<li>LENGTH(str) – длина строки</li>
+<li>LOCATE(needle, haystack [, offset]) – позиция первого вхождения подстроки</li>
+<li>LOWER(str) – перевод в нижний регистр.</li>
+<li>MOD(a, b) – остаток от деления a на b.</li>
+<li>SIZE(collection) – количество элементов в коллекции</li>
+<li>SQRT(q) – квадратный корень.</li>
+<li>SUBSTRING(str, start [, length]) – подстрока.</li>
+<li>TRIM([LEADING | TRAILING | BOTH] [‘trchar’ FROM] str) – Удалении оконечных пробелов.</li>
+<li>UPPER(str) – перевод в верхний регистр.</li>
+<li>DATE_ADD(date, days, unit) – добавляет к дате заданное количество дней (доступные единицы измерения: DAY, MONTH)</li>
+<li>DATE_SUB(date, days, unit) – вычитание дней из даты</li>
+<li>DATE_DIFF(date1, date2) – Разница в днях между двумя датами</li>
+</ul>
+<h2><span id="1352">13.5.2. Арифметические операторы</span></h2>
+<p>В DQL допускает использование арифметических выражений:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> person<span class="sy0">.</span>salary <span class="sy0">*</span> <span class="nu0">1.5</span> <span class="kw1">FROM</span> CompanyPerson person <span class="kw1">WHERE</span> person<span class="sy0">.</span>salary <span class="sy0">&lt;</span> <span class="nu0">100000</span>
+</div></div>
+<h2><span id="1353">13.5.3. Агрегатные функции</span></h2>
+<p>В предложениях SELECT и GROUP BY можно использовать следующие функции: AVG, COUNT, MIN, MAX, SUM</p>
+<h2><span id="1354">13.5.4. Другие выражения</span></h2>
+<p>Помимо всего вышеперечисленного, в DQL есть довольно широкий набор различных выражений, пришедший из SQL, например:</p>
+<ul>
+<li>
+<strong>ALL/ANY/SOME</strong> – при использовании в выражении WHERE сразу после подзапроса работает как и его эквивалент в SQL.</li>
+<li>
+<strong>BETWEEN a AND b</strong> и <strong>NOT BETWEEN a AND b</strong> для проверки попадания значения в заданный интервал.</li>
+<li>
+<strong>IN (x1, x2, …)</strong> и <strong>NOT IN (x1, x2, ..)</strong> для проверки вхождения значения в заданный набор.</li>
+<li>
+<strong>LIKE</strong> .. и <strong>NOT LIKE</strong> .. сравнение строк.</li>
+<li>IS NULL и <strong>IS NOT NULL</strong> проверка на NULL</li>
+<li>
+<strong>EXISTS</strong> и <strong>NOT EXISTS</strong> в связке с подзапросами</li>
+</ul>
+<h2><span id="1355">13.5.5. Создание пользовательских функций</span></h2>
+<p>По умолчанию DQL имеет в своем арсенале общий набор функций, поддерживаемых многими СУБД. Однако, чаще всего база выбирается раз и навсегда. В таком случае можно расширить синтаксис DQL функциями, ориентированными на конкретную платформу.</p>
+<p>Регистрация пользовательских функций осуществляется через объект Configuration:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$config</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\ORM\Configuration<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">addCustomStringFunction</span><span class="br0">(</span><span class="re0">$name</span><span class="sy0">,</span> <span class="re0">$class</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">addCustomNumericFunction</span><span class="br0">(</span><span class="re0">$name</span><span class="sy0">,</span> <span class="re0">$class</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$config</span><span class="sy0">-&gt;</span><span class="me1">addCustomDatetimeFunction</span><span class="br0">(</span><span class="re0">$name</span><span class="sy0">,</span> <span class="re0">$class</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span> <span class="sy0">=</span> EntityManager<span class="sy0">::</span><span class="me2">create</span><span class="br0">(</span><span class="re0">$dbParams</span><span class="sy0">,</span> <span class="re0">$config</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В зависимости от типа функции она может возвращать строку, число или дату и время. Давайте в качестве примера добавим специфичную для MySQL функцию FLOOR(). Все классы нужно наследовать от базового:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">namespace</span> MyProject\Query\AST<span class="sy0">;</span><br><br><span class="kw2">use</span> \Doctrine\ORM\Query\AST\Functions\FunctionNode<span class="sy0">;</span><br><span class="kw2">use</span> \Doctrine\ORM\Query\Lexer<span class="sy0">;</span><br><br><span class="kw2">class</span> MysqlFloor <span class="kw2">extends</span> FunctionNode<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="re0">$simpleArithmeticExpression</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getSql<span class="br0">(</span>\Doctrine\ORM\Query\SqlWalker <span class="re0">$sqlWalker</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="st_h">'FLOOR('</span> <span class="sy0">.</span> <span class="re0">$sqlWalker</span><span class="sy0">-&gt;</span><span class="me1">walkSimpleArithmeticExpression</span><span class="br0">(</span><br>
+            <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">simpleArithmeticExpression</span><br>
+        <span class="br0">)</span> <span class="sy0">.</span> <span class="st_h">')'</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> parse<span class="br0">(</span>\Doctrine\ORM\Query\Parser <span class="re0">$parser</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$lexer</span> <span class="sy0">=</span> <span class="re0">$parser</span><span class="sy0">-&gt;</span><span class="me1">getLexer</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+        <span class="re0">$parser</span><span class="sy0">-&gt;</span><span class="me1">match</span><span class="br0">(</span>Lexer<span class="sy0">::</span><span class="me2">T_IDENTIFIER</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$parser</span><span class="sy0">-&gt;</span><span class="me1">match</span><span class="br0">(</span>Lexer<span class="sy0">::</span><span class="me2">T_OPEN_PARENTHESIS</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">simpleArithmeticExpression</span> <span class="sy0">=</span> <span class="re0">$parser</span><span class="sy0">-&gt;</span><span class="me1">SimpleArithmeticExpression</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br>
+        <span class="re0">$parser</span><span class="sy0">-&gt;</span><span class="me1">match</span><span class="br0">(</span>Lexer<span class="sy0">::</span><span class="me2">T_CLOSE_PARENTHESIS</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Зарегистрируем функцию, после чего она станет доступна прямо в DQL запросе:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br>
+\Doctrine\ORM\Query\Parser<span class="sy0">::</span><span class="me2">registerNumericFunction</span><span class="br0">(</span><span class="st_h">'FLOOR'</span><span class="sy0">,</span> <span class="st_h">'MyProject\Query\MysqlFloor'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$dql</span> <span class="sy0">=</span> <span class="st0">"SELECT FLOOR(person.salary * 1.75) FROM CompanyPerson person"</span><span class="sy0">;</span>
+</div></div>
+<h1><span id="136">13.6. Запросы к унаследованным классам</span></h1>
+<p>В этой главе рассказывается как строить запросы к унаследованным классам и какой результат при этом ожидать.</p>
+<h2><span id="1361">13.6.1. Одиночная таблица</span></h2>
+<p>Стратегия <a href="http://martinfowler.com/eaaCatalog/singleTableInheritance.html" onclick="javascript:_gaq.push(['_trackEvent','outbound-article','http://martinfowler.com']);">Single Table Inheritance</a> заключается в том, что все классы в иерархии соответствуют одной единственной таблице. И чтобы различать какая запись какому классу соответствует используется так называемый <strong>столбец дискриминатора</strong>.</p>
+<p>Чтобы показать как это работает давайте для начала подготовим набор сущностей. Возьмем сущности Person и Employee:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">namespace</span> Entities<span class="sy0">;</span><br><br><span class="co4">/**<br>
+ * @Entity<br>
+ * @InheritanceType("SINGLE_TABLE")<br>
+ * @DiscriminatorColumn(name="discr", type="string")<br>
+ * @DiscriminatorMap({"person" = "Person", "employee" = "Employee"})<br>
+ */</span><br><span class="kw2">class</span> Person<br><span class="br0">{</span><br>
+    <span class="co4">/**<br>
+     * @Id @Column(type="integer")<br>
+     * @GeneratedValue<br>
+     */</span><br>
+    <span class="kw2">protected</span> <span class="re0">$id</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * @Column(type="string", length=50)<br>
+     */</span><br>
+    <span class="kw2">protected</span> <span class="re0">$name</span><span class="sy0">;</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span><br><br><span class="co4">/**<br>
+ * @Entity<br>
+ */</span><br><span class="kw2">class</span> Employee <span class="kw2">extends</span> Person<br><span class="br0">{</span><br>
+    <span class="co4">/**<br>
+     * @Column(type="string", length=50)<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$department</span><span class="sy0">;</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p>Обратите внимание как будет выглядеть SQL запрос на создание таблиц для этих сущностей, а таблица-то всего одна:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Person <span class="br0">(</span><br>
+    id <span class="kw1">INTEGER</span> <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span> AUTOINCREMENT <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    name <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">50</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    discr <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    department <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">50</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><br><span class="br0">)</span>
+</div></div>
+<p>И теперь каждый раз когда будет сохраняться экземпляр сущности Employee, автоматом будет заполняться столбец дискриминатора:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$employee</span> <span class="sy0">=</span> <span class="kw2">new</span> \Entities\Employee<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$employee</span><span class="sy0">-&gt;</span><span class="me1">setName</span><span class="br0">(</span><span class="st_h">'test'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$employee</span><span class="sy0">-&gt;</span><span class="me1">setDepartment</span><span class="br0">(</span><span class="st_h">'testing'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$employee</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Теперь напишем запрос, который достанет только что сохраненную сущность Employee из базы:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> e <span class="kw1">FROM</span> Entities\Employee e <span class="kw1">WHERE</span> e<span class="sy0">.</span>name <span class="sy0">=</span> <span class="st0">'test'</span>
+</div></div>
+<p>Если посмотреть на нативный SQL запрос, можно заметить специальное условие, которое гарантирует, что из базы будет возвращена именно сущность типа Employee:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> p0_<span class="sy0">.</span>id <span class="kw1">AS</span> id0<span class="sy0">,</span> p0_<span class="sy0">.</span>name <span class="kw1">AS</span> name1<span class="sy0">,</span> p0_<span class="sy0">.</span>department <span class="kw1">AS</span> department2<span class="sy0">,</span><br>
+       p0_<span class="sy0">.</span>discr <span class="kw1">AS</span> discr3 <span class="kw1">FROM</span> Person p0_<br><span class="kw1">WHERE</span> <span class="br0">(</span>p0_<span class="sy0">.</span>name <span class="sy0">=</span> ?<span class="br0">)</span> <span class="kw1">AND</span> p0_<span class="sy0">.</span>discr <span class="kw1">IN</span> <span class="br0">(</span><span class="st0">'employee'</span><span class="br0">)</span>
+</div></div>
+<h2><span id="1362_Class_Table_Inheritance">13.6.2. Class Table Inheritance</span></h2>
+<p><a href="http://martinfowler.com/eaaCatalog/classTableInheritance.html" onclick="javascript:_gaq.push(['_trackEvent','outbound-article','http://martinfowler.com']);">Стратегия Class Table Inheritance</a> справедлива когда каждый класс в иерархии соответствует нескольким таблицам: его собственной и таблицам его родительских классов. Таким образом, таблица дочернего класса будет связана с таблицей родительского класса посредством внешнего ключа. В Doctrine 2 имплементирует эту стратегию посредством использования столбца дискриминатора у самой верхней таблицы в иерархии, потому что в контексте этой стратегии это наипростейший из способов для возможности работы полиморфных запросов.</p>
+<p>Пример ниже аналогичен наследования от единственной таблицы, нужно только поменять тип наследования с <strong>SINGLE_TABLE</strong> на <strong>JOINED</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/**<br>
+ * @Entity<br>
+ * @InheritanceType("JOINED")<br>
+ * @DiscriminatorColumn(name="discr", type="string")<br>
+ * @DiscriminatorMap({"person" = "Person", "employee" = "Employee"})<br>
+ */</span><br><span class="kw2">class</span> Person<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p>Посмотрите на SQL запрос, который создает таблицы, обратите внимание на различия с предыдущим примером:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Person <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    name <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">50</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    discr <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Employee <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    department <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">50</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Employee <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Person<span class="br0">(</span>id<span class="br0">)</span> <span class="kw1">ON</span> <span class="kw1">DELETE</span> CASCADE</div></div>
+<ul>
+<li>Данные бьются на две таблицы.</li>
+<li>Таблицы связаны внешним ключом</li>
+</ul>
+<p>Теперь если попробовать сохранить ту же сущность Employee как мы делали для SINGLE_TABLE, а затем запросить ее из базы, то итоговый SQL запрос будет выглядеть иначе, в нем будет автоматически подсоединена таблица, несущая в себе информацию о типе Person:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> p0_<span class="sy0">.</span>id <span class="kw1">AS</span> id0<span class="sy0">,</span> p0_<span class="sy0">.</span>name <span class="kw1">AS</span> name1<span class="sy0">,</span> e1_<span class="sy0">.</span>department <span class="kw1">AS</span> department2<span class="sy0">,</span><br>
+       p0_<span class="sy0">.</span>discr <span class="kw1">AS</span> discr3<br><span class="kw1">FROM</span> Employee e1_ <span class="kw1">INNER</span> <span class="kw1">JOIN</span> Person p0_ <span class="kw1">ON</span> e1_<span class="sy0">.</span>id <span class="sy0">=</span> p0_<span class="sy0">.</span>id<br><span class="kw1">WHERE</span> p0_<span class="sy0">.</span>name <span class="sy0">=</span> ?</div></div>
+<h1><span id="137_Query">13.7. Класс Query</span></h1>
+<p>Любой запрос DQL всегда будет представлен экземпляром класса <em>Doctrine\ORM\Query</em>. Этот экземпляр создается при вызове <strong>EntityManager#createQuery($dql)</strong> куда вы передаете строку с запросом. Либо можно создать пустой экземпляр Query, а затем вызвать метод <strong>Query#setDql($dql)</strong>. Пару примеров:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em это эклемпляр EntityManager</span><br><br><span class="co1">// example1: Передача строки с DQL</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'select u from MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// example2: то же при помощи setDql</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">setDql</span><span class="br0">(</span><span class="st_h">'select u from MyProject\Model\User u'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h1><span id="1371">13.7.1. Форматы результата запросов</span></h1>
+<p>Формат в котором будет возвращен результат DQL запроса SELECT может быть определен с помощью так называемого режима гидрации (<strong>hidration mode</strong>, кто-нибудь, мать его, знает как переводится это слово в контексте ORM?). Режим гидрации определяет каким способом будет подготовлен SQL запрос. Для каждого типа гидрации есть свой отдельный метода в классе Query. Вот они:</p>
+<p><strong>Query#getResult()</strong>: Возвращает коллекцию объектов. Результатом может быть либо коллекция объектов (простой) либо массив, в котором объекты вложены в строки результатов запроса (смешанный).</p>
+<p><strong>Query#getSingleResult()</strong>: Возвращает один объект. Если в результате запроса содержится более одного обхекте или объект отсутствует, будет выброшено исключение. Нет разницы простой это результат или смешанный.</p>
+<p><strong>Query#getOneOrNullResult()</strong>: Возвращает один объект Если объект отсутствует будет возвращено значение NULL.</p>
+<p><strong>Query#getArrayResult()</strong>: Возвращает массив графов (вложенный масив), который в значительной степени взаимозаменяем с графом объектов, возвращаемых методом <strong>Query#getResult()</strong>, но только для чтения.</p>
+<blockquote><p>В некоторых случаях граф массивов может отличаться от соответствующего графа объектов из-за отличия в семантике между массивами и объектами.</p></blockquote>
+<p><strong>Query#getScalarResult()</strong>: Возвращает плоский/прямоугольный результирующий набор, который может содержать повторяющиеся данные. Нет разницы простой это результат или смешанный.</p>
+<p><strong>Query#getSingleScalarResult()</strong>: Возвращает единственное скалярное значение из результата, возвращаемого СУБД. Если результат содержит более одного такого значения, будет выброшено исключение. Нет разницы простой это результат или смешанный.</p>
+<p>Вместо этих методом можно воспользоваться универсальным методом<strong> Query#execute(array $params = array(), $hydrationMode = Query::HYDRATE_OBJECT)</strong>. В нем можно явно указать метод гидрации. Фактически, все вышеприведенные методы это лишь сокращения для метода <strong>Query#execute</strong>. Например, <strong>Query#getResult()</strong> внутри себя вызывает <strong>Query#execute</strong>, передавая Query::HYDRATE_OBJECT в качестве метода гидрации.</p>
+<p>С целью удобства лучше применять вышеприведенные методы вместо execute.</p>
+<h2><span id="1372_Pure__Mixed">13.7.2. Простые (Pure) и смешанные (Mixed) результаты</span></h2>
+<p>DQL запрос SELECT, вызыванный с помощью методов <strong>Query#getResult()</strong> и <strong>Query#getArrayResult()</strong> может возвращать результат в двух формах: простой (pure) и смешанной (mixed). В предыдущих примерах вы уже видели простую форму — это просто массив объектов. По умолчанию, результат возвращается в простой форме, но если в предложении SELECT будут присутствовать скалярные значения, не относящиеся к сущности, такие как агрегации и т.д., результат будет представлен в смешанной форме. Смешанный результат имеет иную структуру, чтобы вмещать в себя скалярные значение.</p>
+<p>Простой результат обычно выглядит так::</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="re0">$dql</span> <span class="sy0">=</span> <span class="st0">"SELECT u FROM User u"</span><span class="sy0">;</span><br><br><span class="kw3">array</span><br>
+    <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object<br>
+    <span class="br0">[</span><span class="nu0">1</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object<br>
+    <span class="br0">[</span><span class="nu0">2</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object<br>
+    <span class="sy0">...</span>
+</div></div>
+<p>Смешанный результат имеет структуру следующего формата:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="re0">$dql</span> <span class="sy0">=</span> <span class="st0">"SELECT u, 'some scalar string', count(u.groups) AS num FROM User u JOIN u.groups g GROUP BY u.id"</span><span class="sy0">;</span><br><br><span class="kw3">array</span><br>
+    <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><br>
+        <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object<br>
+        <span class="br0">[</span><span class="nu0">1</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="st0">"some scalar string"</span><br>
+        <span class="br0">[</span><span class="st_h">'num'</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="nu0">42</span><br>
+        <span class="co1">// ... здесь идут другие скалярные значение, индексируемые числовым способом или по имени</span><br>
+    <span class="br0">[</span><span class="nu0">1</span><span class="br0">]</span><br>
+        <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object<br>
+        <span class="br0">[</span><span class="nu0">1</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="st0">"some scalar string"</span><br>
+        <span class="br0">[</span><span class="st_h">'num'</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="nu0">42</span><br>
+        <span class="co1">// ... здесь идут другие скалярные значение, индексируемые числовым способом или по имени</span>
+</div></div>
+<p>Чтобы лучше понять суть смешанных результатов рассмотрим следующий DQL-запрос:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">,</span> <span class="kw1">UPPER</span><span class="br0">(</span>u<span class="sy0">.</span>name<span class="br0">)</span> nameUpper <span class="kw1">FROM</span> MyProject\Model\<span class="kw1">USER</span> u</div></div>
+<p>В запросе используется функция UPPER, которая возвращает скалярное значение. Таким образом, в предложении SELECT будет присотствовать не только сущность но и скалярное знаение, поэтому результат будет смешанным.</p>
+<p>Несколько нюансов о смешанных результатах:</p>
+<ul>
+<li>Объект, запрашиваемый в предложении FROM всегда будет доступен по ключу ’0′.</li>
+<li>Каждое скалярное значение без имени будет пронумеровано по порядку его нахождения в запросе, начиная с единицы.</li>
+<li>Скалярные значения, имеющие псевдоним будут доступны по ключу, значением которого является этот псевдоним. Регистр имени сохраняется.</li>
+<li>Если в предложении FROM указано несколько объектов они будут чередоваться в каждой строке.</li>
+</ul>
+<p>Ниже показано как может выглядеть результат запроса:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw3">array</span><br>
+    <span class="kw3">array</span><br>
+        <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> User <span class="br0">(</span>Object<span class="br0">)</span><br>
+        <span class="br0">[</span><span class="st_h">'nameUpper'</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="st0">"ROMAN"</span><br>
+    <span class="kw3">array</span><br>
+        <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> User <span class="br0">(</span>Object<span class="br0">)</span><br>
+        <span class="br0">[</span><span class="st_h">'nameUpper'</span><span class="br0">]</span> <span class="sy0">=&gt;</span> <span class="st0">"JONATHAN"</span><br>
+    <span class="sy0">...</span>
+</div></div>
+<p>И как получить доступ к его элементам из PHP кода:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$results</span> <span class="kw1">as</span> <span class="re0">$row</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">echo</span> <span class="st0">"Name: "</span> <span class="sy0">.</span> <span class="re0">$row</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="sy0">-&gt;</span><span class="me1">getName</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="kw1">echo</span> <span class="st0">"Name UPPER: "</span> <span class="sy0">.</span> <span class="re0">$row</span><span class="br0">[</span><span class="st_h">'nameUpper'</span><span class="br0">]</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<h2><span id="1373___FROM">13.7.3. Несколько сущностей в предложени FROM</span></h2>
+<p>В случае если вы делаете выборку сразу нескольких сущностей, указывая их в предложении FROM, в результирующий набор сущности будут чередоваться по строкам. Вот как это выглядит:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="re0">$dql</span> <span class="sy0">=</span> <span class="st0">"SELECT u, g FROM User u, Group g"</span><span class="sy0">;</span><br><br><span class="kw3">array</span><br>
+    <span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object <span class="br0">(</span>User<span class="br0">)</span><br>
+    <span class="br0">[</span><span class="nu0">1</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object <span class="br0">(</span>Group<span class="br0">)</span><br>
+    <span class="br0">[</span><span class="nu0">2</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object <span class="br0">(</span>User<span class="br0">)</span><br>
+    <span class="br0">[</span><span class="nu0">3</span><span class="br0">]</span> <span class="sy0">=&gt;</span> Object <span class="br0">(</span>Group<span class="br0">)</span>
+</div></div>
+<h2><span id="1374">13.7.4. Методы гидрации</span></h2>
+<p>Каждый из режимов гидрации делает предположение о том, в каком виде результат должен быть возвращен конечному пользователю. Чтобы умет ьвыбирать нужный формат для результата запроса следует понимать все детали гидрации:</p>
+<p>Каждый режим представлен соответствующей константов:</p>
+<ul>
+<li>Query::HYDRATE_OBJECT</li>
+<li>Query::HYDRATE_ARRAY</li>
+<li>Query::HYDRATE_SCALAR</li>
+<li>Query::HYDRATE_SINGLE_SCALAR</li>
+</ul>
+<h3><span id="13741_Object_Hydration">13.7.4.1. Object Hydration</span></h3>
+<p>Object hydration оформляет результирующий набор в виде графа объектов:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span>Query<span class="sy0">::</span><span class="me2">HYDRATE_OBJECT</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h3><span id="13742_Array_Hydration">13.7.4.2. Array Hydration</span></h3>
+<p>Примерно тоже самое, результатом будет тот же граф объектов, представленный в виде массива:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer"> <span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span>Query<span class="sy0">::</span><span class="me2">HYDRATE_ARRAY</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Тоже самое можно сделать одним коротким вызовом метода getArrayResult():</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getArrayResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h3><span id="13743_Scalar_Hydration">13.7.4.3. Scalar Hydration</span></h3>
+<p>Возвращает простой прямоугольный набор вместо графа:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span>Query<span class="sy0">::</span><span class="me2">HYDRATE_SCALAR</span><span class="br0">)</span><span class="sy0">;</span><br><span class="kw1">echo</span> <span class="re0">$users</span><span class="br0">[</span><span class="nu0">0</span><span class="br0">]</span><span class="br0">[</span><span class="st_h">'u_id'</span><span class="br0">]</span><span class="sy0">;</span>
+</div></div>
+<p>при скалярной гидрации делаются следующие предположения относительно выбираемых полей:<br>
+К полям классов  будет добавлен префикс в виде псевдонима DQL. Результирующий набор для запроса вида ‘SELECT u.name ..’ будет содержать ключ ‘u_name’.</p>
+<h3><span id="13744_Single_Scalar_Hydration">13.7.4.4. Single Scalar Hydration</span></h3>
+<p>Для случая когда запрос возвращает единственное скалярное значение:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT COUNT(a.id) FROM CmsUser u LEFT JOIN u.articles a WHERE u.username = ?1 GROUP BY u.id'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="st_h">'jwage'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$numArticles</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span>Query<span class="sy0">::</span><span class="me2">HYDRATE_SINGLE_SCALAR</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В качестве сокращения можно использовать метод getSingleScalarResult():</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$numArticles</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getSingleScalarResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h3><span id="13745">13.7.4.5. Пользовательские режимы гидрации</span></h3>
+<p>Для создание своих методов гидрации нужно создать класс, унаследовав его от <em>AbstractHydrator</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">namespace</span> MyProject\Hydrators<span class="sy0">;</span><br><br><span class="kw2">use</span> Doctrine\ORM\Internal\Hydration\AbstractHydrator<span class="sy0">;</span><br><br><span class="kw2">class</span> CustomHydrator <span class="kw2">extends</span> AbstractHydrator<br><span class="br0">{</span><br>
+    <span class="kw2">protected</span> <span class="kw2">function</span> _hydrateAll<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_stmt<span class="sy0">-&gt;</span><span class="me1">fetchAll</span><span class="br0">(</span>PDO<span class="sy0">::</span><span class="me2">FETCH_ASSOC</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Затем нужно добавить этот класс в конфикурацию ORM:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getConfiguration</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">addCustomHydrationMode</span><span class="br0">(</span><span class="st_h">'CustomHydrator'</span><span class="sy0">,</span> <span class="st_h">'MyProject\Hydrators\CustomHydrator'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Теперь гидратор доступен для использования в запросах:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM CmsUser u'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$results</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="st_h">'CustomHydrator'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="1375">13.7.5. Итерирование по огромным результирующим наборам</span></h2>
+<p>Иногда бывает, что запрос возвращает такой неебически большой объем данных, что его нельзя просто взять и обработать. Какой бы режим гидрации вы не использовали, все они загружают весь результирующий набор целиком в память, что может быть недопустимо при работе с большим объемом данных. В главе <a title="Пакетная обработка" href="http://odiszapc.ru/doctrine/batch-processing">Пакетная обработка</a> описано как работать с большими массивами данных.</p>
+<h2><span id="1376">13.7.6. Функции</span></h2>
+<p>У класса AbstractQuery, от которого наследуются Query и NativeQuery есть следующие методы.</p>
+<h3><span id="13761">13.7.6.1. Параметры</span></h3>
+<p>Выражения, использующие именованные wildcards, для выполнения требуют дополнительных параметров. Передать парамтеры в запрос можно с помощью следующих методов:</p>
+<ul>
+<li>AbstractQuery::setParameter($param, $value) – Устанавливает значение для численного или именованного wildcard.</li>
+<li>AbstractQuery::setParameters(array $params) – Устанавливает параметры, получая массив а виде пар ключ-значение.</li>
+<li>AbstractQuery::getParameter($param)</li>
+<li>AbstractQuery::getParameters()</li>
+</ul>
+<p>Парадавать именованные и позиционные параметры в эти методы нужно без префиксов <strong>?</strong> или <strong>:</strong>.</p>
+<h3><span id="13762_API">13.7.6.2. API для управление кешем</span></h3>
+<p>Кешировать результаты запросов можно как на основе переменных (SQL, режим гидрации, параметры, Hints) или пользовательских ключей. По умолчанию результаты запроса не кешируются. Включить кеш можно персонально для каждого запроса. В следующем примере показано как работать с Result Cache API:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM MyProject\Model\User u WHERE u.id = ?1'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setParameter</span><span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">12</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setResultCacheDriver</span><span class="br0">(</span><span class="kw2">new</span> ApcCache<span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">useResultCache</span><span class="br0">(</span><span class="kw4">true</span><span class="br0">)</span><br>
+      <span class="sy0">-&gt;</span><span class="me1">setResultCacheLifeTime</span><span class="br0">(</span><span class="re0">$seconds</span> <span class="sy0">=</span> <span class="nu0">3600</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// промах</span><br><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">expireResultCache</span><span class="br0">(</span><span class="kw4">true</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// игнорирование кеша, снова промах</span><br><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setResultCacheId</span><span class="br0">(</span><span class="st_h">'my_query_result'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// результат сохранен под ключом 'my_query_result'</span><br><br><span class="co1">// Либо можно вызвать useResultCache() со всем параметрами:</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">useResultCache</span><span class="br0">(</span><span class="kw4">true</span><span class="sy0">,</span> <span class="re0">$seconds</span> <span class="sy0">=</span> <span class="nu0">3600</span><span class="sy0">,</span> <span class="st_h">'my_query_result'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$result</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// cache hit!</span><br><br><span class="co1">// Интроспекция</span><br><span class="re0">$queryCacheProfile</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getQueryCacheProfile</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$cacheDriver</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getResultCacheDriver</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$lifetime</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getLifetime</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$key</span> <span class="sy0">=</span> <span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">getCacheKey</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<blockquote><p>Установить драйвер кеша можно глобально в экземпляре класса Doctrine\ORM\Configuration, т.о. он будет передан во все экземпляры Query и NativeQuery.</p></blockquote>
+<h3><span id="13763">13.7.6.3. Подсказки</span></h3>
+<p>С помощью метода <strong>AbstractQuery::setHint($name, $value)</strong> в гидраторы и парсер запроса можно передавать подсказки (hints). Сейчас в основном существуют внтуренние подсказки, которые не используются пользователями библиотеки. Однако, следующие несколько можно применять:</p>
+<ul>
+<li>Query::HINT_FORCE_PARTIAL_LOAD – позволяет производить гидрацию даже если из базы данных были получены не все столбцы. Этот хинт помогает снизить потребление памяти для больших массивов данных. В Doctrine нет функционала для неявной перезагрузки таких данных. Чтобы заново подгрузить такие объекты из базы данных их нужно передать методу EntityManager::refresh().</li>
+<li>Query::HINT_REFRESH – этот хинт используется внутри метода EntityManager::refresh(), но также может быть использован и в обычном режиме. Как он работает: когда вы загружаете из БД данные сущности, которая уже находится под управлением UnitOfWork, то поля этой сущности будут обновлены. В обычном режиме предпочтение отдается данным существующей сущности, а результирующий набор отклоняется.</li>
+<li>Query::HINT_CUSTOM_TREE_WALKERS – Массив дополнительных эклемпляров Doctrine\ORM\Query\TreeWalker, подключаемых к процессу синтаксического разбора DQL запроса.</li>
+</ul>
+<h3><span id="13764___DQL">13.7.6.4. Кеш запросов (только для DQL запросов)</span></h3>
+<p>Думаю всем очевидно, что разбор DQL запросов и последующая их трансформация в SQL несут в себе ряд издержек по сравнению с выполнением обычных SQL запросов. Поэтому мы существует специальный кеш, где хранится результат синтакцсического разбора каждого DQL запроса. Если использовать wildcards  в запросах, то синтаксический анализ можно вообще свести на нет – все будет браться из кеша.</p>
+<p>Каждому экземпляру <em>Doctrine\ORM\Query</em> драйвер кеша запросов передается из экземпляра <em>Doctrine\ORM\Configuration instance to each Doctrine\ORM\Query</em>, кроме того он включен по умолчанию. Так что обычно не стоит заморачиваться с опциями этого кеша, однако, если все же захотите, то следующие методы помогут вам:</p>
+<ul>
+<li>Query::setQueryCacheDriver($driver) – позволяет установить экземпляр драйвера кеша.</li>
+<li>Query::setQueryCacheLifeTime($seconds = 3600) – устанавливает время жизни кеша.</li>
+<li>Query::expireQueryCache($bool) – если установлен в TRUE принудительно инвалидирует кеш, отключая его.</li>
+<li>Query::getExpireQueryCache()</li>
+<li>Query::getQueryCacheDriver()</li>
+<li>Query::getQueryCacheLifeTime()</li>
+</ul>
+<h3><span id="13765_____DQL">13.7.6.5. Первый и максимальный элементы в результирующем наборе (только для DQL)</span></h3>
+<p>Можно делать срез по результататм DQL запросов (limit и offset):</p>
+<ul>
+<li>Query::setMaxResults($maxResults)</li>
+<li>Query::setFirstResult($offset)</li>
+</ul>
+<blockquote><p>Если в запросе присутствует подключаемая fetch-joined коллекция, вышеприведенные методы будут работать не так как ожидается. setMaxResults просто ограничивает число строк результата, в то время как при использовании fetch-joined коллекций одна и та же ведущая сущность может появляться в различных строках, финальный результат после гидрации будет меньше заданного числа строк.</p></blockquote>
+<h3><span id="13766___DQL">13.7.6.6. Временное изменение режима выборки в DQL</span></h3>
+<p>Обычно все связи помечены ка к lazy или extra lazy, однако в некоторых случаях из за высокой стоимость операции JOIN не нужно включать в результирующий набор остальные сущности через fetch join. Поэтому такие связи Many-To-One или One-To-One можно пометить соответствующим образом для пакетной обработки с помощью конструкции WHERE .. IN.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$query</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"SELECT u FROM MyProject\User u"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">setFetchMode</span><span class="br0">(</span><span class="st0">"MyProject\User"</span><span class="sy0">,</span> <span class="st0">"address"</span><span class="sy0">,</span> <span class="st0">"EAGER"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$query</span><span class="sy0">-&gt;</span><span class="me1">execute</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Допустим в БД лежат 10 пользователей и соответствующие им адреса, тогда запрос будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> <span class="sy0">*</span> <span class="kw1">FROM</span> users;<br><span class="kw1">SELECT</span> <span class="sy0">*</span> <span class="kw1">FROM</span> address <span class="kw1">WHERE</span> id <span class="kw1">IN</span> <span class="br0">(</span><span class="nu0">1</span><span class="sy0">,</span> <span class="nu0">2</span><span class="sy0">,</span> <span class="nu0">3</span><span class="sy0">,</span> <span class="nu0">4</span><span class="sy0">,</span> <span class="nu0">5</span><span class="sy0">,</span> <span class="nu0">6</span><span class="sy0">,</span> <span class="nu0">7</span><span class="sy0">,</span> <span class="nu0">8</span><span class="sy0">,</span> <span class="nu0">9</span><span class="sy0">,</span> <span class="nu0">10</span><span class="br0">)</span>;</div></div>
+<h1><span id="138_EBNF">13.8. EBNF</span></h1>
+<p>Следующая контекстно-свободная грамматика, представленная в форме EBNF описывает язык DQL. К ней можно обращаться если вам не очевидны те или иные стороны DQL или непонятен синтаксис того или иного запроса.</p>
+<p><strong>Прим. пер.: Дальнейший материал является чисто справочным и я не вижу смысла переводить (на самом деле мне лень), тут и так все ясно.</strong></p>
+<h2><span id="1381_Document_syntax">13.8.1. Document syntax:</span></h2>
+<ul>
+<li>non-terminals begin with an upper case character</li>
+<li>terminals begin with a lower case character</li>
+<li>parentheses (…) are used for grouping</li>
+<li>square brackets [...] are used for defining an optional part, e.g. zero or one time</li>
+<li>curly brackets {…} are used for repetition, e.g. zero or more times</li>
+<li>double quotation marks ”…” define a terminal string a vertical bar | represents an alternative</li>
+</ul>
+<h2><span id="1382_Terminals">13.8.2. Terminals</span></h2>
+<ul>
+<li>identifier (name, email, …)</li>
+<li>string (‘foo’, ‘bar’’s house’, ‘%ninja%’, …)</li>
+<li>char (‘/’, ‘\’, ‘ ‘, …)</li>
+<li>integer (-1, 0, 1, 34, …)</li>
+<li>float (-0.23, 0.007, 1.245342E+8, …)</li>
+<li>boolean (false, true)</li>
+</ul>
+<h2><span id="1383_Query_Language">13.8.3. Query Language</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">QueryLanguage ::= SelectStatement | UpdateStatement | DeleteStatement</div></div>
+<h2><span id="1384_Statements">13.8.4. Statements</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">SelectStatement ::= SelectClause FromClause [WhereClause] [GroupByClause] [HavingClause] [OrderByClause]<br>
+UpdateStatement ::= UpdateClause [WhereClause]<br>
+DeleteStatement ::= DeleteClause [WhereClause]</div></div>
+<h2><span id="1385_Identifiers">13.8.5. Identifiers</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;height:580px;"><div class="text codecolorer">/* Alias Identification usage (the "u" of "u.name") */<br>
+IdentificationVariable ::= identifier<br><br>
+/* Alias Identification declaration (the "u" of "FROM User u") */<br>
+AliasIdentificationVariable :: = identifier<br><br>
+/* identifier that must be a class name (the "User" of "FROM User u") */<br>
+AbstractSchemaName ::= identifier<br><br>
+/* identifier that must be a field (the "name" of "u.name") */<br>
+/* This is responsible to know if the field exists in Object, no matter if it's a relation or a simple field */<br>
+FieldIdentificationVariable ::= identifier<br><br>
+/* identifier that must be a collection-valued association field (to-many) (the "Phonenumbers" of "u.Phonenumbers") */<br>
+CollectionValuedAssociationField ::= FieldIdentificationVariable<br><br>
+/* identifier that must be a single-valued association field (to-one) (the "Group" of "u.Group") */<br>
+SingleValuedAssociationField ::= FieldIdentificationVariable<br><br>
+/* identifier that must be an embedded class state field (for the future) */<br>
+EmbeddedClassStateField ::= FieldIdentificationVariable<br><br>
+/* identifier that must be a simple state field (name, email, ...) (the "name" of "u.name") */<br>
+/* The difference between this and FieldIdentificationVariable is only semantical, because it points to a single field (not mapping to a relation) */<br>
+SimpleStateField ::= FieldIdentificationVariable<br><br>
+/* Alias ResultVariable declaration (the "total" of "COUNT(*) AS total") */<br>
+AliasResultVariable = identifier<br><br>
+/* ResultVariable identifier usage of mapped field aliases (the "total" of "COUNT(*) AS total") */<br>
+ResultVariable = identifier</div></div>
+<h2><span id="1386_Path_Expressions">13.8.6. Path Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">/* "u.Group" or "u.Phonenumbers" declarations */<br>
+JoinAssociationPathExpression             ::= IdentificationVariable "." (CollectionValuedAssociationField | SingleValuedAssociationField)<br><br>
+/* "u.Group" or "u.Phonenumbers" usages */<br>
+AssociationPathExpression                 ::= CollectionValuedPathExpression | SingleValuedAssociationPathExpression<br><br>
+/* "u.name" or "u.Group" */<br>
+SingleValuedPathExpression                ::= StateFieldPathExpression | SingleValuedAssociationPathExpression<br><br>
+/* "u.name" or "u.Group.name" */<br>
+StateFieldPathExpression                  ::= IdentificationVariable "." StateField | SingleValuedAssociationPathExpression "." StateField<br><br>
+/* "u.Group" */<br>
+SingleValuedAssociationPathExpression     ::= IdentificationVariable "." SingleValuedAssociationField<br><br>
+/* "u.Group.Permissions" */<br>
+CollectionValuedPathExpression            ::= IdentificationVariable "." {SingleValuedAssociationField "."}* CollectionValuedAssociationField<br><br>
+/* "name" */<br>
+StateField                                ::= {EmbeddedClassStateField "."}* SimpleStateField<br><br>
+/* "u.name" or "u.address.zip" (address = EmbeddedClassStateField) */<br>
+SimpleStateFieldPathExpression            ::= IdentificationVariable "." StateField</div></div>
+<h2><span id="1387_Clauses">13.8.7. Clauses</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">SelectClause        ::= "SELECT" ["DISTINCT"] SelectExpression {"," SelectExpression}*<br>
+SimpleSelectClause  ::= "SELECT" ["DISTINCT"] SimpleSelectExpression<br>
+UpdateClause        ::= "UPDATE" AbstractSchemaName ["AS"] AliasIdentificationVariable "SET" UpdateItem {"," UpdateItem}*<br>
+DeleteClause        ::= "DELETE" ["FROM"] AbstractSchemaName ["AS"] AliasIdentificationVariable<br>
+FromClause          ::= "FROM" IdentificationVariableDeclaration {"," IdentificationVariableDeclaration}*<br>
+SubselectFromClause ::= "FROM" SubselectIdentificationVariableDeclaration {"," SubselectIdentificationVariableDeclaration}*<br>
+WhereClause         ::= "WHERE" ConditionalExpression<br>
+HavingClause        ::= "HAVING" ConditionalExpression<br>
+GroupByClause       ::= "GROUP" "BY" GroupByItem {"," GroupByItem}*<br>
+OrderByClause       ::= "ORDER" "BY" OrderByItem {"," OrderByItem}*<br>
+Subselect           ::= SimpleSelectClause SubselectFromClause [WhereClause] [GroupByClause] [HavingClause] [OrderByClause]</div></div>
+<h2><span id="1388_Items">13.8.8. Items</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">UpdateItem  ::= IdentificationVariable "." (StateField | SingleValuedAssociationField) "=" NewValue<br>
+OrderByItem ::= (ResultVariable | SingleValuedPathExpression) ["ASC" | "DESC"]<br>
+GroupByItem ::= IdentificationVariable | SingleValuedPathExpression<br>
+NewValue    ::= ScalarExpression | SimpleEntityExpression | "NULL"</div></div>
+<h2><span id="1389_From_Join_and_Index_by">13.8.9. From, Join and Index by</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">IdentificationVariableDeclaration          ::= RangeVariableDeclaration [IndexBy] {JoinVariableDeclaration}*<br>
+SubselectIdentificationVariableDeclaration ::= IdentificationVariableDeclaration | (AssociationPathExpression ["AS"] AliasIdentificationVariable)<br>
+JoinVariableDeclaration                    ::= Join [IndexBy]<br>
+RangeVariableDeclaration                   ::= AbstractSchemaName ["AS"] AliasIdentificationVariable<br>
+Join                                       ::= ["LEFT" ["OUTER"] | "INNER"] "JOIN" JoinAssociationPathExpression<br>
+                                               ["AS"] AliasIdentificationVariable ["WITH" ConditionalExpression]<br>
+IndexBy                                    ::= "INDEX" "BY" SimpleStateFieldPathExpression</div></div>
+<h2><span id="13810_Select_Expressions">13.8.10. Select Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">SelectExpression        ::= IdentificationVariable | PartialObjectExpression | (AggregateExpression | "(" Subselect ")"  | FunctionDeclaration | ScalarExpression) [["AS"] AliasResultVariable]<br>
+SimpleSelectExpression  ::= ScalarExpression | IdentificationVariable |<br>
+                            (AggregateExpression [["AS"] AliasResultVariable])<br>
+PartialObjectExpression ::= "PARTIAL" IdentificationVariable "." PartialFieldSet<br>
+PartialFieldSet         ::= "{" SimpleStateField {"," SimpleStateField}* "}"</div></div>
+<h2><span id="13811_Conditional_Expressions">13.8.11. Conditional Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">ConditionalExpression       ::= ConditionalTerm {"OR" ConditionalTerm}*<br>
+ConditionalTerm             ::= ConditionalFactor {"AND" ConditionalFactor}*<br>
+ConditionalFactor           ::= ["NOT"] ConditionalPrimary<br>
+ConditionalPrimary          ::= SimpleConditionalExpression | "(" ConditionalExpression ")"<br>
+SimpleConditionalExpression ::= ComparisonExpression | BetweenExpression | LikeExpression |<br>
+                                InExpression | NullComparisonExpression | ExistsExpression |<br>
+                                EmptyCollectionComparisonExpression | CollectionMemberExpression |<br>
+                                InstanceOfExpression</div></div>
+<h2><span id="13812_Collection_Expressions">13.8.12. Collection Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">EmptyCollectionComparisonExpression ::= CollectionValuedPathExpression "IS" ["NOT"] "EMPTY"<br>
+CollectionMemberExpression          ::= EntityExpression ["NOT"] "MEMBER" ["OF"] CollectionValuedPathExpression</div></div>
+<h2><span id="13813_Literal_Values">13.8.13. Literal Values</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">Literal     ::= string | char | integer | float | boolean<br>
+InParameter ::= Literal | InputParameter</div></div>
+<h2><span id="13814_Input_Parameter">13.8.14. Input Parameter</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">InputParameter      ::= PositionalParameter | NamedParameter<br>
+PositionalParameter ::= "?" integer<br>
+NamedParameter      ::= ":" string</div></div>
+<h2><span id="13815_Arithmetic_Expressions">13.8.15. Arithmetic Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">ArithmeticExpression       ::= SimpleArithmeticExpression | "(" Subselect ")"<br>
+SimpleArithmeticExpression ::= ArithmeticTerm {("+" | "-") ArithmeticTerm}*<br>
+ArithmeticTerm             ::= ArithmeticFactor {("*" | "/") ArithmeticFactor}*<br>
+ArithmeticFactor           ::= [("+" | "-")] ArithmeticPrimary<br>
+ArithmeticPrimary          ::= SingleValuedPathExpression | Literal | "(" SimpleArithmeticExpression ")"<br>
+                               | FunctionsReturningNumerics | AggregateExpression | FunctionsReturningStrings<br>
+                               | FunctionsReturningDatetime | IdentificationVariable | InputParameter | CaseExpression</div></div>
+<h2><span id="13816_Scalar_and_Type_Expressions">13.8.16. Scalar and Type Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">ScalarExpression       ::= SimpleArithmeticExpression | StringPrimary | DateTimePrimary | StateFieldPathExpression<br>
+                           BooleanPrimary | EntityTypeExpression | CaseExpression<br>
+StringExpression       ::= StringPrimary | "(" Subselect ")"<br>
+StringPrimary          ::= StateFieldPathExpression | string | InputParameter | FunctionsReturningStrings | AggregateExpression | CaseExpression<br>
+BooleanExpression      ::= BooleanPrimary | "(" Subselect ")"<br>
+BooleanPrimary         ::= StateFieldPathExpression | boolean | InputParameter<br>
+EntityExpression       ::= SingleValuedAssociationPathExpression | SimpleEntityExpression<br>
+SimpleEntityExpression ::= IdentificationVariable | InputParameter<br>
+DatetimeExpression     ::= DatetimePrimary | "(" Subselect ")"<br>
+DatetimePrimary        ::= StateFieldPathExpression | InputParameter | FunctionsReturningDatetime | AggregateExpression</div></div>
+<blockquote><p>Parts of CASE expressions are not yet implemented.</p></blockquote>
+<h2><span id="13817_Aggregate_Expressions">13.8.17. Aggregate Expressions</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">AggregateExpression ::= ("AVG" | "MAX" | "MIN" | "SUM") "(" ["DISTINCT"] StateFieldPathExpression ")" |<br>
+                        "COUNT" "(" ["DISTINCT"] (IdentificationVariable | SingleValuedPathExpression) ")"</div></div>
+<h2><span id="13818">13.8.18. Условия</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">CaseExpression        ::= GeneralCaseExpression | SimpleCaseExpression | CoalesceExpression | NullifExpression<br>
+GeneralCaseExpression ::= "CASE" WhenClause {WhenClause}* "ELSE" ScalarExpression "END"<br>
+WhenClause            ::= "WHEN" ConditionalExpression "THEN" ScalarExpression<br>
+SimpleCaseExpression  ::= "CASE" CaseOperand SimpleWhenClause {SimpleWhenClause}* "ELSE" ScalarExpression "END"<br>
+CaseOperand           ::= StateFieldPathExpression | TypeDiscriminator<br>
+SimpleWhenClause      ::= "WHEN" ScalarExpression "THEN" ScalarExpression<br>
+CoalesceExpression    ::= "COALESCE" "(" ScalarExpression {"," ScalarExpression}* ")"<br>
+NullifExpression      ::= "NULLIF" "(" ScalarExpression "," ScalarExpression ")"</div></div>
+<h2><span id="13819">13.8.19. Другие выражения</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">QUANTIFIED/BETWEEN/COMPARISON/LIKE/NULL/EXISTS<br>
+QuantifiedExpression     ::= ("ALL" | "ANY" | "SOME") "(" Subselect ")"<br>
+BetweenExpression        ::= ArithmeticExpression ["NOT"] "BETWEEN" ArithmeticExpression "AND" ArithmeticExpression<br>
+ComparisonExpression     ::= ArithmeticExpression ComparisonOperator ( QuantifiedExpression | ArithmeticExpression )<br>
+InExpression             ::= StateFieldPathExpression ["NOT"] "IN" "(" (InParameter {"," InParameter}* | Subselect) ")"<br>
+InstanceOfExpression     ::= IdentificationVariable ["NOT"] "INSTANCE" ["OF"] (InstanceOfParameter | "(" InstanceOfParameter {"," InstanceOfParameter}* ")")<br>
+InstanceOfParameter      ::= AbstractSchemaName | InputParameter<br>
+LikeExpression           ::= StringExpression ["NOT"] "LIKE" string ["ESCAPE" char]<br>
+NullComparisonExpression ::= (SingleValuedPathExpression | InputParameter) "IS" ["NOT"] "NULL"<br>
+ExistsExpression         ::= ["NOT"] "EXISTS" "(" Subselect ")"<br>
+ComparisonOperator       ::= "=" | "&lt;" | "&lt;=" | "&lt;&gt;" | "&gt;" | "&gt;=" | "!="</div></div>
+<h2><span id="13820">13.8.20. Функции</span></h2>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">FunctionDeclaration ::= FunctionsReturningStrings | FunctionsReturningNumerics | FunctionsReturningDateTime<br><br>
+FunctionsReturningNumerics ::=<br>
+        "LENGTH" "(" StringPrimary ")" |<br>
+        "LOCATE" "(" StringPrimary "," StringPrimary ["," SimpleArithmeticExpression]")" |<br>
+        "ABS" "(" SimpleArithmeticExpression ")" | "SQRT" "(" SimpleArithmeticExpression ")" |<br>
+        "MOD" "(" SimpleArithmeticExpression "," SimpleArithmeticExpression ")" |<br>
+        "SIZE" "(" CollectionValuedPathExpression ")"<br><br>
+FunctionsReturningDateTime ::= "CURRENT_DATE" | "CURRENT_TIME" | "CURRENT_TIMESTAMP"<br><br>
+FunctionsReturningStrings ::=<br>
+        "CONCAT" "(" StringPrimary "," StringPrimary ")" |<br>
+        "SUBSTRING" "(" StringPrimary "," SimpleArithmeticExpression "," SimpleArithmeticExpression ")" |<br>
+        "TRIM" "(" [["LEADING" | "TRAILING" | "BOTH"] [char] "FROM"] StringPrimary ")" |<br>
+        "LOWER" "(" StringPrimary ")" |<br>
+        "UPPER" "(" StringPrimary ")"</div></div>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_76152198"></div></div></div>
+
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/12/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/14/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

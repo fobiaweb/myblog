@@ -1,0 +1,321 @@
+---
+layout: page
+title:  "8. Работа с объектами"
+---
+
+
+		<p>Эта глава поможет понять принципы, на которых строится работа компонентов <em>EntityManager</em> и <em>UnitOfWork</em>. <em>Unit of Work</em> (Единица работы) это что-то вроде транзакций на уровне объектов. При первом создании <em>EntityManager</em> или после вызова метода <em>EntityManager#flush()</em> неявно произойдет создание новой единицы работы. Коммит этой единицы (и создание новой) происходит при вызове <em>EntityManager#flush()</em>.</p>
+<p>Вызвав метод <em>EntityManager#close()</em>, можно отменить все несохраненные изменения в <em>Unit of Work</em>.</p>
+<blockquote><p>Здесь важно понимать следующее. Только сам <em>EntityManager#flush()</em> непосредственно выполняет запись в базу данных. Все остальные методы, такие как <em>EntityManager#persist($entity)</em> или <em>EntityManager#remove($entity)</em> лишь уведомляют <em>UnitOfWork</em> о последующем исполнении этих операций при вызове метода <em>flush()</em>. По сути они лишь подготавливают транзакцию, а flush() исполняет ее.<br>
+Если не вызвать EntityManager#flush(), то все внесенные в контексте текущего запроса изменения будут утеряны.</p></blockquote>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#81_8220_8221_Identity_Map">8.1. Паттерн “Карта соответствия” (Identity Map)</a></li>
+<li><a href="#82">8.2. Обход графа сущностей</a></li>
+<li><a href="#83">8.3. Сохранение сущностей</a></li>
+<li><a href="#84">8.4. Удаление сущностей</a></li>
+<li><a href="#85">8.5. Отсоединение сущностей</a></li>
+<li><a href="#86">8.6. Слияние сущностей</a></li>
+<li>
+<a href="#87">8.7. Синхронизация с базой данных</a><ul>
+<li><a href="#871_Effects_of_Database_and_UnitOfWork_being_Out-Of-Sync">8.7.1. Effects of Database and UnitOfWork being Out-Of-Sync</a></li>
+<li><a href="#872__new__managed">8.7.2. Синхронизация новых (new) и управляемых (managed) сущностей</a></li>
+<li><a href="#873">8.7.3. Синхронизация удаленных сущностей</a></li>
+<li><a href="#874_Unit_of_Work">8.7.4. Размер Unit of Work</a></li>
+<li><a href="#875__flush">8.7.5. Производительность операции flush</a></li>
+<li><a href="#876__Unit_of_Work">8.7.6. Прямой доступ к Unit of Work</a></li>
+<li><a href="#877">8.7.7. Состояние сущности</a></li>
+</ul>
+</li>
+<li>
+<a href="#88">8.8. Запросы</a><ul>
+<li><a href="#881">8.8.1. По первичному ключу</a></li>
+<li><a href="#882">8.8.2. С простыми условиями</a></li>
+<li><a href="#883_82208221">8.8.3. “Жадная” загрузка</a></li>
+<li><a href="#884_82208221">8.8.4. “Ленивая” загрузка</a></li>
+<li><a href="#885__DQL">8.8.5. С помощью DQL</a></li>
+<li><a href="#886__SQL">8.8.6. Через нативный SQL</a></li>
+<li><a href="#887">8.8.7. Пользовательские репозитории</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1><span id="81_8220_8221_Identity_Map">8.1. Паттерн “Карта соответствия” (Identity Map)</span></h1>
+<p>Сущности, как нам уже известно, это объекты с некоторыми идентификаторами. Эти идентификаторы имеют концептуальное значение в приложении. Вы, наверное, знаете, что в CMS каждая статья или новость имеет свой уникальный идентификатор, именно за счет него можно отличить одну статью от другой, т.е. идентифицировать ее.</p>
+<p>Возьмем следующий пример. В нем мы происходит поиск статьи с заголовком <strong>“Hello World”</strong> и идентификатором <strong>1234</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$article</span> <span class="sy0">=</span> <span class="re0">$entityManager</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'CMS\Article'</span><span class="sy0">,</span> <span class="nu0">1234</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">setHeadline</span><span class="br0">(</span><span class="st_h">'Hello World dude!'</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$article2</span> <span class="sy0">=</span> <span class="re0">$entityManager</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'CMS\Article'</span><span class="sy0">,</span> <span class="nu0">1234</span><span class="br0">)</span><span class="sy0">;</span><br><span class="kw1">echo</span> <span class="re0">$article2</span><span class="sy0">-&gt;</span><span class="me1">getHeadline</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В этом примере сущность <em>Article</em> дважды запрашивается менеджером сущностей, а между вызовами происходит ее модификация. <em>Doctrine</em> без разницы сколько раз будет запрошен объект из менеджера сущностей. В данном примере <em>Article</em> с <em>ID</em> <strong>1234</strong> всегда будет существовать только в одном экземпляре. И не важно как вы получаете эту сущность: через метод <em>find</em>, через репозиторий или через <em>DQL</em>. Паттерн, который делает такое поведение возможным, называется картой соответствия <em>(identity map)</em>. <em>Doctrine</em> хранит в ней соответствие каждой сущности ее идентификатору, которые были полученные в результате запроса в PHP, и, таким образом, всегда возвращает вам одни и те же экземпляры.</p>
+<p>В предыдущем примере в результате вывода на экран вы увидите сообщение <strong>“Hello World dude!”</strong>. Несложно проверить, что <strong>$article</strong> и <strong>$article2</strong> действительно указывают на один и тот же экземпляр:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$article</span> <span class="sy0">===</span> <span class="re0">$article2</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">echo</span> <span class="st0">"Yes we are the same!"</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<p>Иногда нужно полностью очистить карту соответствия менеджера сущностей для того, чтобы начать некоторую процедуру, так сказать, с чистого листа. Этот прием часто используется в юнит-тестах для того, чтобы заставить движок загружать объекты из базы данных, вместо поиска соответствий в карте. Очистить карту соответствий  можно с помощью метода <em>EntityManager#clear()</em>.</p>
+<h1><span id="82">8.2. Обход графа сущностей</span></h1>
+<p>Хотя Doctrine и позволяет осуществлять полное разделение вашей доменной модели, при обходе связей никогда не возникнет ситуации, когда какие-то объекты будут отсутствовать. Поэтому пробежаться по связям в ваших сущностях можно сколь угодно глубоко.</p>
+<p>Возьмем следующий пример, в нем мы получаем единственную статью Article из менеджера сущностей.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Article<br><span class="br0">{</span><br>
+    <span class="co4">/** @Id @Column(type="integer") @GeneratedValue */</span><br>
+    <span class="kw2">private</span> <span class="re0">$id</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @Column(type="string") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$headline</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @ManyToOne(targetEntity="User") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$author</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @OneToMany(targetEntity="Comment", mappedBy="article") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$comments</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">comments</span> <span class="sy0">=</span> <span class="kw2">new</span> ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getAuthor<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span> <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">author</span><span class="sy0">;</span> <span class="br0">}</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getComments<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span> <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">comments</span><span class="sy0">;</span> <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="re0">$article</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'Article'</span><span class="sy0">,</span> <span class="nu0">1</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь происходит получение экземпляра сущности <em>Article</em> с идентификатором <strong>1</strong> путем исполнения единственного запроса <em>SELECT</em>. После этого можно получить доступ к ее свойствам <strong>author</strong> и <strong>comments</strong>, а также объектам, которые они содержат.</p>
+<p>Это достигается за счет использования паттерна “ленивая загрузка” (lazy loading). Вместо того, чтобы давать доступ сразу к экземпляру <em>Author</em> и коллекции comments <em>Doctrine</em> создаст специальные прокси-объекты, куда и перенаправит вас. И при первом доступе они обратятся к <em>EntityManager</em> и загрузят свое текущее состояние из базы данных. Сделано это для повышения производительности.</p>
+<p>Процесс ленивой загрузки работает неявно, он скрыт от ваших глаз (но ничто не мешает отследить его при помощь отладки). Рассмотрим следующий код:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$article</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'Article'</span><span class="sy0">,</span> <span class="nu0">1</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// запрос метода экземпляра сущности запускает ленивую загрузку</span><br><span class="kw1">echo</span> <span class="st0">"Author: "</span> <span class="sy0">.</span> <span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">getAuthor</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">getName</span><span class="br0">(</span><span class="br0">)</span> <span class="sy0">.</span> <span class="st0">"<span class="es1">\n</span>"</span><span class="sy0">;</span><br><br><span class="co1">// Проверим экзмеплар</span><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">getAuthor</span><span class="br0">(</span><span class="br0">)</span> instanceof User<span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="co1">// Прокси для класса User реализован в классе UserProxy</span><br><span class="br0">}</span><br><br><span class="co1">// Запрос комментарие через итерацию также запускает ленивую загрузку,</span><br><span class="co1">// возвращая ВСЕ комментарии этой статьи из базы данных</span><br><span class="co1">// при этом используется один SELECT запрос </span><br><span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">getComments</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">echo</span> <span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="kw3">getText</span><span class="br0">(</span><span class="br0">)</span> <span class="sy0">.</span> <span class="st0">"<span class="es1">\n</span><span class="es1">\n</span>"</span><span class="sy0">;</span><br><span class="br0">}</span><br><br><span class="co1">// Article::$comments имеет интерфейся Collection</span><br>
+ <span class="co1">// Но при этом не соответствует интерфейсу ArrayCollection</span><br><span class="kw1">if</span> <span class="br0">(</span><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">getComments</span><span class="br0">(</span><span class="br0">)</span> instanceof \Doctrine\Common\Collections\Collection<span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">echo</span> <span class="st0">"This will always be true!"</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<p>Сгенерированные прокси классы выглядят как показано ниже. Реально (чисто конкретно – прим. пер.) такой класс переопределяет все общедоступные методы подобно переопределению метода <em>getName()</em>, как показано ниже:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> UserProxy <span class="kw2">extends</span> User implements Proxy<br><span class="br0">{</span><br>
+    <span class="kw2">private</span> <span class="kw2">function</span> _load<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="co1">// lazy loading code</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getName<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span>_load<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="kw1">return</span> parent<span class="sy0">::</span><span class="me2">getName</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br>
+    <span class="co1">// .. other public methods of User</span><br><span class="br0">}</span>
+</div></div>
+<blockquote><p>При обходе графа те его части, которые используют ленивую загрузку, будут порождать много SQL-запросов, и не очень хорошо если это будет происходить слишком часто. Вместо этого используйте DQL, он позволяет делать все за один запрос, агрегируя все сущности в графе в один запрос, это гораздо эффективней.</p></blockquote>
+<h1><span id="83">8.3. Сохранение сущностей</span></h1>
+<p>Сохранить сущность можно с помощью метода <em>EntityManager#persist($entity)</em>. После осуществления над сущностью операции сохранения, она получает статус <strong>MANAGED</strong>, который означает, что отныне она персистирована (готова к сохранению в БД) и управляется менеджером сущностей <em>EntityManager</em>. После этого персистированная сущность может быть синхронизирована с базой данных вызовом метода <em>EntityManager#flush()</em>.</p>
+<blockquote><p>Передача сущности методу persist не запусукает на исполнение SQL запросы INSERT. Doctrine придерживается транзакционной модели выполнения, которая означает, что SQL-запросы будут придержаны до вызова метода EntityManager#flush(). И только после его вызова они будут выполнены, т.о ваши объекты будут синхронизированы с базой данных через единую транзакцию, что сохранит целостность операции.</p></blockquote>
+<p>Пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="kw2">new</span> User<span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setName</span><span class="br0">(</span><span class="st_h">'Mr.Right'</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<blockquote><p>После вызова метода <em>flush</em> всем идентификаторам и первичным ключам гарантированно будут присвоены значения. Нельзя полагаться на то, что значения они получат сразу после вызова метода persist. Справедливо и обратное — нельзя полагаться на то, что идентификаторам <strong>не будут</strong> присвоены значения после неудачного вызова метода flush.</p></blockquote>
+<p>Семантика операции персистенции (persist operation), применительно к сущности X, заключается в следующем:</p>
+<ul>
+<li>Если <em>X</em> является свежесозданной (<strong>NEW</strong>) сущностью, она станет управляемой (<strong>MANAGED</strong>). Сущность X попадет в базу данных после операции <em>flush()</em>;</li>
+<li>Если <em>X</em> является <strong>MANAGED</strong> сущностью, она будет проигнорирована методом <em>persist()</em>. Однако, <em>persist()</em> каскадно пройдет по всем сущностям, на которые ссылается <em>X</em>, если отношения между <em>X</em> и этими сущностями имеют флаги <strong>cascade=PERSIST</strong> или <strong>cascade=ALL</strong>.</li>
+<li>Если <em>X</em> является удаленной (<strong>REMOVED</strong>) сущностью, она снова станет управляемой (<strong>MANAGED</strong>).</li>
+<li>Есил <em>X</em> является отсоединенной (<strong>DETACHED</strong>) сущностью, то метод <em>flush()</em> выбросит исключение.</li>
+</ul>
+<h1><span id="84">8.4. Удаление сущностей</span></h1>
+<p>Удалить сущность из постоянного хранилища можно c помощью передачи ее методу <em>EntityManager#remove($entity)</em>. При этом сущность будет помечена как <strong>REMOVED</strong>, что означает, что она будет удалена их хранилища при следующем вызове метода  <em>EntityManager#flush()</em>.</p>
+<blockquote><p>Тут ситуация аналогичная методу persist() — вызов метода remove() фактически ничего не удаляет (запросы DELETE не исполняются). Удалена сущность будет лишь после вызова EntityManager#flush(). Это значит, что к запланированным на удаление сущностям по прежнему можно обращаться посредством запросов, и они совершенно спокойно могут появляться в результатах запросов. Для более подробной информации читайте раздел <a href="http://odiszapc.ru/doctrine/working-with-objects/#871_Effects_of_Database_and_UnitOfWork_being_Out-Of-Sync">Database and UnitOfWork Out-Of-Sync</a>.</p></blockquote>
+<p>Пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">remove</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Семантика операции удаления, применительно к сущности <em>X</em>, заключается в следующем:</p>
+<ul>
+<li>Если <em>X</em> является свежесозданной (<strong>NEW</strong>) сущностью, она будет проигнорирована операцией удаления. Однако, <em>remove()</em> каскадно пройдет по всем сущностям, на которые ссылается <em>X</em>, если отношения между <em>X</em> и этими сущностями имеют флаги <strong>cascade=REMOVE</strong> или <strong>cascade=ALL</strong>
+</li>
+<li>Если <em>X</em> является существующей <strong>MANAGED</strong> сущностью, она будет помечена как <strong>REMOVED</strong>.</li>
+<li>Если <em>X</em> является удаленной (<strong>REMOVED</strong>) сущностью, она будет проигнорирована операцией удаления.</li>
+<li>Есил <em>X</em> является отсоединенной (<strong>DETACHED</strong>) сущностью, будет выброшено исключение <em>InvalidArgumentException</em>.</li>
+<li>Сущность, помеченная как <strong>REMOVED</strong> будет удалена из базы данных при следующем вызове метода <em>flush()</em>.</li>
+</ul>
+<p>После того как сущность будет удалена, ее текущее состояние (ее поля) останется таким же как до удаления, за исключением сгенерированных идентификаторов.</p>
+<p>Помимо этого, при удалении сущности будут также удалены все связанные с ней записи во всех <em>“many-to-many”</em> таблицах, которые указывают на нее. Произойдет это или нет, зависит от значения атрибута <em>onDelete </em>в аннотации <em>@joinColumn</em>. Тут два варианта: либо <em>Doctrine</em> вызовет отдельные <em>DELETE</em> запросы для каждой записи в связанных таблицах, либо удаление произойдет на основе внешних ключей при <strong>onDelete=”CASCADE”</strong>.</p>
+<p>Удалить сам объект вместе со всеми связанными с ним другими объектами можно несколькими способами, которые значительно отличаются по производительности.</p>
+<p>Если связь помечена флагом <strong>CASCADE=REMOVE</strong> <em>Doctrine 2</em> целиком возьмет ее обработку на себя. Если эта связь представляет собой одиночную сущность, она просто будет передана методу <em>EntityManager#remove()</em>. Если связь представляет собой коллекцию, <em>Doctrine</em> сделает итерацию по ней и для каждого элемента вызовет <em>EntityManager#remove()</em>. В обоих случаях каскадное удаление работает рекурсивно. Для графа, в котором много объектов, выполнять такую операцию будет весьма накладно.</p>
+<p>С помощью оператора <em>DQL DELETE</em>  можно удалить сразу несколько сущностей без необходимости их обработки. Это больше подходит для удаления больших графов объектов.</p>
+<p>Использование семантики внешних ключей <strong>onDelete=”CASCADE”</strong> заставляет базу данных саму произвести удаление всех связанных объектов. Хоть эта стратегия и более сложна, и тут можно конкретно напортачить, но работает это очень быстро, да и сам подход удобен. Однако, следует знать, что использовании первой стратегии (<strong>CASCADE=REMOVE</strong>) заставляет Doctrine полностью исключить из анализа все опции внешних ключей <strong>onDelete=CASCADE</strong>, потому что в данной ситуации <em>Doctrine</em> будет явно запрашивать и удалять все связанные сущности.</p>
+<h1><span id="85">8.5. Отсоединение сущностей</span></h1>
+<p>Отсоединить сущность от <em>EntityManager</em> можно как с помощью передачи ее методу <em>EntityManager#detach($entity)</em> так и при каскадной операции отсоединения. После того как сущность была отсоединена все изменения, внесенные в нее (включая операцию удаления) не будут синхронизированы с базой данных.</p>
+<p><em>Doctrine</em>, в свою очередь, не будет пытаться хранить ссылки на отсоединенную сущность. </p>
+<p>Пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">detach</span><span class="br0">(</span><span class="re0">$entity</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Семантика операции отсоединения применительно к сущности <em>X</em>, заключается в следующем:</p>
+<ul>
+<li>Если <em>X</em> является существующей <strong>MANAGED</strong> сущностью, при отсоединении она будет помечена как <strong>DETACHED</strong>. При этом <em>detach()</em> каскадно пройдет по всем сущностям, на которые ссылается <em>X</em>, если отношения между <em>X</em> и этими сущностями имеют флаги <strong>cascade=DETACH</strong> или <strong>cascade=ALL</strong>. Сущности, которые до этого ссылались на <em>X</em> продолжат на нее ссылаться.</li>
+<li>Если <em>X</em> является только что созданной (<strong>NEW</strong>) или уже отсоединенной сущностью, она будет проигнорирована операцией отсоединения.</li>
+<li>Если <em>X</em> является удаленной (<strong>REMOVED</strong>) сущностью, операция отсоединения каскадно пройдет по всем сущностям, на которые ссылкается <em>X</em>, если отношения между <em>X</em> и этими сущностями имеют флаги<strong> cascade=DETACH</strong> или <strong>cascade=ALL</strong>. Сущности, которые до этого ссылались на <em>X</em> продолжают на нее ссылаться.</li>
+</ul>
+<p>Существует несколько ситуаций, при которых сущность будет отсоединена автоматически без вызова соответствующего метода: </p>
+<ul>
+<li>При вызове метода <em>EntityManager#clear()</em> все сущности, находящиеся под управлением менеджера сущностей будут отсоединены от него.</li>
+<li>При сериализации сущности. Сущность, полученная при последующей де-сериализации станет отсоединенной. (Это касается всех сущностей, которые были сериализованы и размещены в каком-нибудь кеше, например, при кешировании результатов запросов).</li>
+</ul>
+<p>Вообще говоря, отсоединять сущности нужно будет не так часто как, например, удалять и сохранять их.</p>
+<h1><span id="86">8.6. Слияние сущностей</span></h1>
+<p>Под объединением имеется ввиду слияние (обычно отсоединенных) сущностей в контекст менеджера <em>EntityManager</em>, в результате чего эти сущности снова попадут в общий граф и станут управляемыми (<strong>MANAGED</strong>). Чтобы объединить сущность с графом нужно воспользоваться методом <em>EntityManager#merge($entity)</em>. Состояние переданной ему сущности будет объединено в управляемую копию данной сущности, и эта копия будет впоследствии возвращена в качестве результата вызова метода.</p>
+<p>Пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$detachedEntity</span> <span class="sy0">=</span> <span class="kw3">unserialize</span><span class="br0">(</span><span class="re0">$serializedEntity</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// какая-то отсоединенная сущность</span><br><span class="re0">$entity</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">merge</span><span class="br0">(</span><span class="re0">$detachedEntity</span><span class="br0">)</span><span class="sy0">;</span><br><span class="co1">// $entity теперь ссылается на управляемую копию, возвращенную методом merge().</span><br><span class="co1">// EntityManager $em теперь как обычно может работать с сущностью $entity.</span>
+</div></div>
+<blockquote><p>Когда необходимо произвести сериализацию или десериализацию сущности, нужно сделать все ее свойства защищенными (protected), но не закрытыми (private). Причина в том, что когда сериализуется класс, который до этого был экземпляром прокси-объекта, его закрытые члены не будут участвовать в сериализации, о чем PHP выдаст сообщение типа Notice.</p></blockquote>
+<p>Семантика слияния применительно к сущности <em>X</em> заключается в следующем (без бутылки не разобраться):</p>
+<ul>
+<li>Если <em>X</em> является отсоединенной сущностью, ее состояние будет скопировано на уже существующий экзмепляр сущности <em>X’</em> с тем же идентификатором.</li>
+<li>Если <em>X</em> новая сущность, будет создана ее управляемая (<strong>MANAGED</strong>) копия <em>X’</em>, и состояние <em>X</em> будет скопировано в этот управляемый экземпляр.</li>
+<li>Если <em>X</em> экземпляр удаленной сущности, будет выброшено исключение <em>InvalidArgumentException</em>.</li>
+<li>Если <em>X</em> является <strong>MANAGED</strong> сущностью, операция слияния проигнорирует ее. Однако, операция <em>merge()</em> каскадно пройдет по всем сущностям, на которые ссылкается <em>X</em>, если отношения между <em>X</em> и этими сущностями имеют флаги <strong>cascade=MERGE</strong> или <strong>cascade=ALL</strong>.</li>
+<li>Для всех сущностей <em>Y</em>, на которые ссылается <em>X</em>, имеющая флаг <strong>cascade=MERGE</strong> или <strong>ALL</strong>, <em>Y</em> будет рекурсивно смерджена в <em>Y’</em>. Для всех таких <em>Y</em>, на которые ссылаются <em>X</em>,  <em>X’</em> будет ссылаться на <em>Y’</em>. (Обратите внимание, если <em>X</em> это управляемая (<strong>MANAGED</strong>) сущность, то экземпляр <em>X</em> это одно и тоже что и <em>X’</em>).</li>
+<li>Если <em>X</em> сущность, которая после слияния перешла в <em>X’</em>, и в ней была ссылка на другую сущность <em>Y</em>, и при этом не был задан флаг <strong>cascade=MERGE</strong> или <strong>cascade=ALL</strong>, то при попытке перехода по такой связи от <em>X’</em> управление будет передано по ссылке на управляемый объект <em>Y’</em>, имеющий такой же постоянный идентификатор, что и <em>Y</em>.</li>
+</ul>
+<p>Операция слияния может выбросить исключение <em>OptimisticLockException</em> в случае, если сущность была смерджена с использованием оптимистичной блокировки <em>(optimistic locking)</em> чеерез поле с версией и при этом версии смердженной сущности и ее управляемой копии не совпадают. Обычно это означает, что после операции отсоединения сущность была каким-то образом изменена.</p>
+<p>В отличии от операции сохранения и удаления, слияние применяется не так часто. Типичный сценарий, где она может пригодится — когда нужно заново прикрепить сущности к <em>EntityManager</em> после того как они были получены из какого-нибудь кеша (и как следствие до этого были отсоединены).</p>
+<blockquote><p>Если необходимо сделать множественное слияние сущностей, которые разделют между собой определенные части графа, следует вызвать метод <em>EntityManager#clear()</em> между последовательными вызовами метода <em>EntityManager#merge()</em>. В противном случае вы можете получить в базе данных несколько копий одного и того же объекта, но с разными идентификаторами.</p></blockquote>
+<blockquote><p>При загрузке отсоединенных сущностей их кеша, если вам не нужно сохранять и удалять их или вы хотите работать с ними без участия сервисов вроде EntityManager, слияние как таковое вам не нужно. Например ничто не мешает передать отсоединенные объекты из кеша напрямую в представление (view).</p></blockquote>
+<h1><span id="87">8.7. Синхронизация с базой данных</span></h1>
+<p>Состояние сохраненных сущностей будет синхронизировано с базой данных при помощи операции <em>EntityManager#flush()</em>, которая, в свою очередь, вызовет методы компонента <em>UnitOfWork</em>. Синхронизация включает в себя запись в базу данных любых изменений в сущностях и их отношениях. Как описано в главе <a title="Отображение связей" href="http://odiszapc.ru/doctrine/association-mapping/">“Отображение связей”</a>, двусторонние отношения сохраняются на основе ссылок, исходящих со стороны владельца.</p>
+<p>Когда происходит вызов метода <em>EntityManager#flush()</em>, <em>Doctrine</em> анализирует все <strong>MANAGED</strong>-, <strong>NEW</strong>- и <strong>REMOVED</strong>- сущности и выполняет соответствующие этим состояниям операции.</p>
+<h2><span id="871_Effects_of_Database_and_UnitOfWork_being_Out-Of-Sync">8.7.1. Effects of Database and UnitOfWork being Out-Of-Sync</span></h2>
+<p>Когда вы изменили состояние сущностей, вызовите метод <em>persist()</em> или <em>remove()</em> компонента <em>UnitOfWork</em> и база данных <strong>will drive out of sync</strong> (???).  Но фактически синхронизированы они могут быть только путем вызова метода <em>EntityManager#flush()</em>. Этот раздел описывает <strong>the effects of database and UnitOfWork being out of sync</strong>.</p>
+<ul>
+<li>Сущности, которые запланированы на удаление, все еще могут быть запрошены из базы данных. Они могут быть получены в результате <em>DQL</em>-запросов или через репозитории, также они отображаются в коллекциях.</li>
+<li>Сущности, переданные методу <em>EntityManager#persist()</em> не будут появляться в результатах запросов.</li>
+<li>Состояние сущностей, которые были изменены, не будет перезаписано соответствующим их состоянием, уже хранящимся в базе данных. Так происходит потому, что карта соответствия<em> (identity map)</em> будет каждый раз обнаруживать, что создаваемая сущность уже существует и делать предположение, что это и есть ее наиболее свежая версия.</li>
+</ul>
+<p><em>EntityManager#flush()</em> никогда не вызывается Доктриной автоматически. Вы всегда должны вызывать его вручную.</p>
+<h2><span id="872__new__managed">8.7.2. Синхронизация новых (new) и управляемых (managed) сущностей</span></h2>
+<p>Операция flush(), применяемая по отношению к управляемым сущностям работает следующим образом:</p>
+<ul>
+<li>Если у сущности было изменено хотя бы одно поле, она будет синхронизирована в базу данных при помощи <em>SQL</em>-запроса <em>UPDATE</em>.</li>
+<li>Если сущность не изменялась, никаких <em>SQL</em>-запросов выполнено не будет.</li>
+</ul>
+<p>По отношению к новой сущности <em>flush</em> работает так:</p>
+<ul>
+<li>Сущность будет синхронизирована в базу данных при помощи <em>SQL</em>-запроса <em>INSERT</em>.</li>
+</ul>
+<p>Для всех отношений у <strong>NEW</strong>- и <strong>MANAGED</strong>- сущностей, каждая связанная с ними сущность <em>X</em> будет обработана согласно следующим правилам:</p>
+<ul>
+<li>Если <em>X</em> была только что создана (<strong>NEW</strong>) и у нее настроена каскадность при сохранении, то <em>X</em> будет сохранена в базе данных.</li>
+<li>Если <em>X</em> была только что создана (<strong>NEW</strong>) и у нее <strong>не была</strong> задана каскадность при сохранении, будет выброшено исключение.</li>
+<li>Если <em>X</em> имеет статус <strong>REMOVED</strong> и у нее настроена каскадность при сохранении, будет выброшено исключение (потому что <em>Doctrine</em> попытается повторно сохранить <em>X</em>)</li>
+<li>Если <em>X</em> имеет статус <strong>DETACHED</strong> и у нее настроена каскадность при сохранении, будет выброшено исключение (семантика такая же как и при передаче <em>X</em> методу <em>persist()</em>).</li>
+</ul>
+<h2><span id="873">8.7.3. Синхронизация удаленных сущностей</span></h2>
+<p>Если операция <em>flush</em> исполняется по отношению к <strong>REMOVED</strong>- сущности, то такая сущность будет удалена из базы данных. В этом случае при исполнении операции <em>flush</em> опции каскадности не применяются, т.к. каскадное удаление уже отработало при вызове метода <em>EntityManager#remove($entity)</em>.</p>
+<h2><span id="874_Unit_of_Work">8.7.4. Размер Unit of Work</span></h2>
+<p>Размер <em>Unit of Work</em> в определенный момент времени представляет собой ни что иное как число <em>MANAGED</em>-сущностей на этот момент.</p>
+<h2><span id="875__flush">8.7.5. Производительность операции flush</span></h2>
+<p>Насколько дорога операция <em>flush</em> зависит от двух факторов:</p>
+<ul>
+<li>Размер текущего “модуля работы” <em>UnitOfWork</em> в менеджере сущностей.</li>
+<li>Конфигурация политик отслеживания изменений <em>(change tracking policies)</em>
+</li>
+</ul>
+<p>Размер <em>UnitOfWork</em> можно узнать следующим образом:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$uowSize</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getUnitOfWork</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">size</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Размер в данном случае представляет собой количество обслуживаемых сущностей в модуле Unit of Work. И этот размер непосредственно виляет на производительность <em>flush()</em> за счет отслеживания изменений (см. раздел “Change Tracking Policies”) и потребления памяти, так что при разработке время от времени проверяйте эти параметры.</p>
+<blockquote><p>Не нужно вызывать flush() при каждом изменении сущности или каждом вызове операций persist, remove, merge и т.д. Это только лишний раз снизит производительность вашего приложения. Вместо этого формируйте модули работы (units of work), которые и будут производить действия над вашими объектами, а когда закончите вызывайте flush(). При обработке одиночного HTTP запроса обычно достаточно не более двух вызовов flush().</p></blockquote>
+<h2><span id="876__Unit_of_Work">8.7.6. Прямой доступ к Unit of Work</span></h2>
+<p>Получить прямой доступ к <em>Unit of Work</em> можно путем вызова метода <em>EntityManager#getUnitOfWork()</em>. Этот метод вернет экземпляр того <em>UnitOfWork</em>, который в данный момент используется менеджером сущностей.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$uow</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getUnitOfWork</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<blockquote><p>Не оперировать UnitOfWork напрямую. Когда вы напрямую работаете с API UnitOfWork вы используете внтуренние мезанизмы, поэтому внимательно прочтите документацию к API.</p></blockquote>
+<h2><span id="877">8.7.7. Состояние сущности</span></h2>
+<p>Как уже было отмечено в архитектурном обзоре, сущность может находиться в одном из четырех состояний: <strong>NEW</strong>, <strong>MANAGED</strong>, <strong>REMOVED</strong> и <strong>DETACHED</strong>. Если вам нужно узнать текущее состояние в контексте соответствующего <em>EntityManager</em>, можно спросить об этом у лежащего в его основе компонента <em>UnitOfWork</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw1">switch</span> <span class="br0">(</span><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getUnitOfWork</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">getEntityState</span><span class="br0">(</span><span class="re0">$entity</span><span class="br0">)</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="kw1">case</span> UnitOfWork<span class="sy0">::</span><span class="me2">STATE_MANAGED</span><span class="sy0">:</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="kw1">case</span> UnitOfWork<span class="sy0">::</span><span class="me2">STATE_REMOVED</span><span class="sy0">:</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="kw1">case</span> UnitOfWork<span class="sy0">::</span><span class="me2">STATE_DETACHED</span><span class="sy0">:</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="kw1">case</span> UnitOfWork<span class="sy0">::</span><span class="me2">STATE_NEW</span><span class="sy0">:</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p>Сущность находится в состоянии <strong>MANAGED</strong>, если она связана с <em>EntityManager</em> и при этом не имеет статус <strong>REMOVED</strong>.</p>
+<p>Сущность находится в состоянии <strong>REMOVED</strong> после того как она была передана методу <em>EntityManager#remove()</em> до последующего вызова <em>EntityManager#flush()</em>. <strong>REMOVED</strong>-сущность будет все еще связана с менеджером до следующей операции <em>flush</em>.</p>
+<p>Сущность находится в состоянии <strong>DETACHED</strong> если она присутствует в хранилище и у нее есть идентификатор, но в данный момент она не связана с <em>EntityManager</em>.</p>
+<p>Сущность находится в состоянии <strong>NEW</strong> если она отсутствует в хранилище, у нее нет идентификатора и в данный момент она не связана с <em>EntityManager</em> (например она была создана оператором <em>new). </em></p>
+<h1><span id="88">8.8. Запросы</span></h1>
+<p>Осуществлять запросы к хранилищу сущностей в Doctrine 2 можно по-разному. Ниже представлены несколько способов, расположенных в порядке возрастания мощи и гибкости. Всегда старайтесь использовать самые простые способы, и только если они не подходят переходите к более навороченным вариантам.</p>
+<h2><span id="881">8.8.1. По первичному ключу</span></h2>
+<p>Самый простой способ запроса объектов заключается в использовании идентификатора в качестве критерия. Делается это при помощи метода <em>EntityManager#find($entityName, $id)</em>. Вот пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em instanceof EntityManager</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="sy0">,</span> <span class="re0">$id</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Возвращаемое значение представляет собой найденный экземпляр сущности либо <em>NULL</em>, если ничего не найдено.</p>
+<p>Вообще говоря, <em>EntityManager#find()</em> это просто сокращенная форма следующей записи:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em instanceof EntityManager</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="re0">$id</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Метод <em>EntityManager#getRepository($entityName)</em> возвращает объект репозитория, который предоставлят много разных способов получения сущностей соответствующего типа. По умолчанию, экземпляр репозитория имеет тип <em>Doctrine\ORM\EntityRepository</em>. Но вы можете создавать свои типы репозиториев, мы позже покажем как это делается.</p>
+<h2><span id="882">8.8.2. С простыми условиями</span></h2>
+<p>Когда нужно запросить одну или несколько сущностей с несколькими условиями, формирующих логическое умножение, используйте методы репозитория <em>findBy</em> и <em>findOneBy</em> как показано ниже:</p>
+
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em это екзмепляр EntityManager</span><br><br><span class="co1">// Пользователи, которым 20 лет</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'age'</span> <span class="sy0">=&gt;</span> <span class="nu0">20</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// 20-летние с фамилией 'Miller'</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'age'</span> <span class="sy0">=&gt;</span> <span class="nu0">20</span><span class="sy0">,</span> <span class="st_h">'surname'</span> <span class="sy0">=&gt;</span> <span class="st_h">'Miller'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Одиночный юзер по нику</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findOneBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'nickname'</span> <span class="sy0">=&gt;</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Можно сделать и так:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$number</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\Phonenumber'</span><span class="sy0">,</span> <span class="nu0">1234</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findOneBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'phone'</span> <span class="sy0">=&gt;</span> <span class="re0">$number</span><span class="sy0">-&gt;</span><span class="me1">getId</span><span class="br0">(</span><span class="br0">)</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Обратите внимание, здесь нужно передавать именно <strong>ID</strong> связанной сущность, а нее ее саму.</p>
+<p>Метод <em>EntityRepository#findBy()</em> также допускает сортировку и срез результатов путем задания дополнительных параметров:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$tenUsers</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'age'</span> <span class="sy0">=&gt;</span> <span class="nu0">20</span><span class="br0">)</span><span class="sy0">,</span> <span class="kw3">array</span><span class="br0">(</span><span class="st_h">'name'</span> <span class="sy0">=&gt;</span> <span class="st_h">'ASC'</span><span class="br0">)</span><span class="sy0">,</span> <span class="nu0">10</span><span class="sy0">,</span> <span class="nu0">0</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Если в качестве значений фильтра будет передан массив, Doctrine автоматически преобразует его в выражение <em>WHERE field IN (..):</em></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'age'</span> <span class="sy0">=&gt;</span> <span class="kw3">array</span><span class="br0">(</span><span class="nu0">20</span><span class="sy0">,</span> <span class="nu0">30</span><span class="sy0">,</span> <span class="nu0">40</span><span class="br0">)</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="co1">// Будет преобразовано в: SELECT * FROM users WHERE age IN (20, 30, 40)</span>
+</div></div>
+<p><em>EntityRepository</em> позволяет использовать более короткую запись вызова методов при момощие магии <strong>__call</strong>. Нижеприведенные примеры вызова полностью эквивалентны:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Ищем одного пользователя по его нику</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findOneBy</span><span class="br0">(</span><span class="kw3">array</span><span class="br0">(</span><span class="st_h">'nickname'</span> <span class="sy0">=&gt;</span> <span class="st_h">'romanb'</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Тоже самое, но при помощи __call</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyProject\Domain\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">findOneByNickname</span><span class="br0">(</span><span class="st_h">'romanb'</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h2><span id="883_82208221">8.8.3. “Жадная” загрузка</span></h2>
+<p>При запросе сущности, в которй имеются связи, настроенные как <strong>EAGER</strong>, они будут автоматически загружены вместе с запрашиваемой сущностью и будут сразу же доступны приложению.</p>
+<h2><span id="884_82208221">8.8.4. “Ленивая” загрузка</span></h2>
+<p>Когда у вас есть <strong>MANAGED</strong>- сущность, можно прозрачно запросить любые ее связи, помеченные как <strong>LAZY</strong>, так, как будто они уже загружены в память. В соответствии с концепцией “ленивой загрузки” все связанные объекты будут автоматически загружены <em>Doctrine</em> при поптыке доступа к ним.</p>
+<h2><span id="885__DQL">8.8.5. С помощью DQL</span></h2>
+<p><em>Doctrine Query Language</em> — самый мощный и гибкий способ запроса объектов. <em>DQL</em> позволяет написать запрос к объектам на языке самих объектов. <em>DQL</em> понимает классы, поля, наследование и связи. Синтаксически <em>DQL</em> похож на <em>SQL</em>, но это не он.</p>
+<p><em>DQL</em>-запрос представлен экземпляром класса <em>Doctrine\ORM\Query</em>. Создается запрос с помощью метода <em>EntityManager#createQuery($dql)</em>. Пример:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em это экземпляр EntityManager</span><br><br><span class="co1">// Запрос всех пользователей, имеющих возраст от 20 до 30 лет включительно</span><br><span class="re0">$q</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st0">"select u from MyDomain\Model\User u where u.age &gt;= 20 and u.age &lt;= 30"</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$users</span> <span class="sy0">=</span> <span class="re0">$q</span><span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Заметьте, что этот запрос совершенно не знает о существующей схеме отношений, он оперирует лишь объектной моделью. <em>DQL</em> поддерживает как именованные, так и основанные на позиции параметры, множество функций, соединения, агрегации, дочерние запросы и много чего интересного. Более подробная информация о <em>DQL</em> будет рассмотрена в отдельной главе. Для программного построения запросов с условиями в Doctrine есть специальный класс <em>Doctrine\ORM\QueryBuilder</em>. Подробно построение запросов с помощью <em>QueryBuilder</em> будет рассмортено в главе <em>“QueryBuilder”</em>.</p>
+<h2><span id="886__SQL">8.8.6. Через нативный SQL</span></h2>
+<p>В качестве альтернативы DQL можно использовать нативные <em>SQL</em>-запросы. Такие запросы пишутся вручную на <em>SQL</em> и настраиваются с помощью <em>ResultSetMapping</em>, которая описывает каким именно образом результат <em>SQL</em>-запроса будет трактоваться Доктриной. Подробно это будет рассмотрено в отдельной главе.</p>
+<h2><span id="887">8.8.7. Пользовательские репозитории</span></h2>
+<p>Когда вы вызываете метод <em>EntityManager#getRepository($entityClass)</em> <em>EntityManager</em> возвращает вам стандартный репозиторий <em>Doctrine\ORM\EntityRepository</em>. Используя метаданные к аннотациям, XML или YAML, можно описать свой класс репозитория. Использование пользовательских репозиториев более предпочтительно в крупных приложениях, использующих тонны различных <em>SQL</em>-запросов, потому что запросы будут сгруппирваны в одном месте.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">namespace</span> MyDomain\Model<span class="sy0">;</span><br><br><span class="kw2">use</span> Doctrine\ORM\EntityRepository<span class="sy0">;</span><br><br><span class="co4">/**<br>
+* @entity(repositoryClass="MyDomain\Model\UserRepository")<br>
+*/</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br><span class="br0">}</span><br><br><span class="kw2">class</span> UserRepository <span class="kw2">extends</span> EntityRepository<br><span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getAllAdminUsers<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span>_em<span class="sy0">-&gt;</span><span class="me1">createQuery</span><span class="br0">(</span><span class="st_h">'SELECT u FROM MyDomain\Model\User u WHERE u.status = "admin"'</span><span class="br0">)</span><br>
+            <span class="sy0">-&gt;</span><span class="me1">getResult</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Теперь можно обращаться к собственным репозиториям:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// $em это экземпляр EntityManager</span><br><br><span class="re0">$admins</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">getRepository</span><span class="br0">(</span><span class="st_h">'MyDomain\Model\User'</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">getAllAdminUsers</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_1390159"></div></div></div>
+
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/07/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/09/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

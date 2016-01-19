@@ -1,0 +1,281 @@
+---
+layout: page
+title:  "9. Работа со связями"
+---
+
+
+		<p>В <em>Doctrine</em> связи между сущностями выглядят так же как PHP выглядят ссылки на другие объекты и их коллекции. Но когда подобные структуры хранятся в базе данных нужно понимать следующие три вещи:</p>
+<ul>
+<li>
+<a title="Отображение связей" href="http://odiszapc.ru/doctrine/association-mapping#61">Концепция прямой и обратной сторон связи</a> в двусторонних отношениях</li>
+<li>Если сущность удаляется из коллекции, это означает лишь удаление связи, но никак не удаление самой сущности. Связь представлена коллекцией входящих в нее сущностей, но не самими сущностями.</li>
+<li>Поля сущности, являющиеся коллекциями должны реализовывать интерфейс <strong>Doctrine\Common\Collections\Collection</strong>.</li>
+</ul>
+<p>Все изменения, внесенные в связь в течение работы приложения не будут моментально синхронизироваться, это произойдет только после вызова метода <strong>EntityManager#flush()</strong>.</p>
+<p>Чтобы описать все возможные варианты работы со связями мы подготовим специальный набор тестовых сущностей, на примере которых будут продемонстрированы разные способы работы со связями в <em>Doctrine</em>.</p>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#91">9.1. Тестовые сущности</a></li>
+<li><a href="#92">9.2. Создание связи</a></li>
+<li><a href="#93">9.3. Удаление связей</a></li>
+<li><a href="#94">9.4. Способы управления связями</a></li>
+<li><a href="#95">9.5. Синхронизация двусторонних коллекций</a></li>
+<li>
+<a href="#96_Transitive_persistence">9.6. Transitive persistence / Каскадные операции</a><ul><li><a href="#961_Persistence_by_Reachability_Cascade_Persist">9.6.1. Persistence by Reachability: Cascade Persist</a></li></ul>
+</li>
+<li><a href="#97_8220Orphan_Removal8221">9.7. Паттерн “Orphan Removal”</a></li>
+</ul>
+</div>
+<h1><span id="91">9.1. Тестовые сущности</span></h1>
+<p>В качестве примеров мы будем использовать простую систему, в которой есть Пользователи <strong>(Users)</strong> и Комментарии <strong>(Comments)</strong>. Посмотрите на нижеприведенный код, из него будет понятно что к чему:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co4">/** @Id @GeneratedValue @Column(type="string") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$id</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Двусторонняя связь - множество пользователей имеют множество избранных комментариев (это сторона владельца)<br>
+     *<br>
+     * @ManyToMany(targetEntity="Comment", inversedBy="userFavorites")<br>
+     * @JoinTable(name="user_favorite_comments",<br>
+     *   joinColumns={@JoinColumn(name="user_id", referencedColumnName="id")},<br>
+     *   inverseJoinColumns={@JoinColumn(name="favorite_comment_id", referencedColumnName="id")}<br>
+     * )<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$favorites</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Односторонняя связь - множество пользователей могут пометить множество комментариев как прочтенные<br>
+     *<br>
+     * @ManyToMany(targetEntity="Comment")<br>
+     * @JoinTable(name="user_read_comments",<br>
+     *   joinColumns={@JoinColumn(name="user_id", referencedColumnName="id")},<br>
+     *   inverseJoinColumns={@JoinColumn(name="comment_id", referencedColumnName="id")}<br>
+     * )<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$commentsRead</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Двусторонняя связь - один ко многим (обратная сторона)<br>
+     *<br>
+     * @OneToMany(targetEntity="Comment", mappedBy="author")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$commentsAuthored</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Односторонняя связь - многие к одному<br>
+     *<br>
+     * @ManyToOne(targetEntity="Comment")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$firstComment</span><span class="sy0">;</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Comment<br><span class="br0">{</span><br>
+    <span class="co4">/** @Id @GeneratedValue @Column(type="string") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$id</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Двусторонняя связь - множество комментариев добавлены в избранное множеством пользователей (обратная сторона)<br>
+     *<br>
+     * @ManyToMany(targetEntity="User", mappedBy="favorites")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$userFavorites</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * Двусторонняя связь - множество комментариев написано одним пользователем (сторона владельца)<br>
+     *<br>
+     * @ManyToOne(targetEntity="User", inversedBy="authoredComments")<br>
+     */</span><br>
+     <span class="kw2">private</span> <span class="re0">$author</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<p>Для этих двух сущностей будет сгенерирована следующая схема в <em>MySQL</em> (определение внешних ключей опущено) </p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="br0">(</span><br>
+    id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    firstComment_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Comment <span class="br0">(</span><br>
+    id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    author_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> user_favorite_comments <span class="br0">(</span><br>
+    user_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    favorite_comment_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>user_id<span class="sy0">,</span> favorite_comment_id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> user_read_comments <span class="br0">(</span><br>
+    user_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    comment_id <span class="kw1">VARCHAR</span><span class="br0">(</span><span class="nu0">255</span><span class="br0">)</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>user_id<span class="sy0">,</span> comment_id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;</div></div>
+<h1><span id="92">9.2. Создание связи</span></h1>
+<p>Устанавливается связь между двумя сущностями просто. Вот примеры для односторонних отношений:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getReadComments<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+         <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">commentsRead</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> setFirstComment<span class="br0">(</span>Comment <span class="re0">$c</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">firstComment</span> <span class="sy0">=</span> <span class="re0">$c</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Рабочий код будет выглядеть как показано ниже (<strong>$em</strong> здесь это EntityManager):</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="re0">$userId</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// односторонняя связь "многие ко многим"</span><br><span class="re0">$comment</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'Comment'</span><span class="sy0">,</span> <span class="re0">$readCommentId</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getReadComments</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// односторонняя связь "многие к одному"</span><br><span class="re0">$myFirstComment</span> <span class="sy0">=</span> <span class="kw2">new</span> Comment<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">setFirstComment</span><span class="br0">(</span><span class="re0">$myFirstComment</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$myFirstComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>В случае двусторонних связей следует изменять поля у обоих сущностей:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ..</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getAuthoredComments<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">commentsAuthored</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getFavoriteComments<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">favorites</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="kw2">class</span> Comment<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getUserFavorites<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">userFavorites</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> setAuthor<span class="br0">(</span>User <span class="re0">$author</span> <span class="sy0">=</span> <span class="kw4">null</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">author</span> <span class="sy0">=</span> <span class="re0">$author</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="co1">// Многие ко многим</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$favoriteComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$favoriteComment</span><span class="sy0">-&gt;</span><span class="me1">getUserFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Многие к одному / один ко многим, двусторонняя связь</span><br><span class="re0">$newComment</span> <span class="sy0">=</span> <span class="kw2">new</span> Comment<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getAuthoredComments</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$newComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$newComment</span><span class="sy0">-&gt;</span><span class="me1">setAuthor</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$newComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Обратите внимание на внесенные изменения — у двусторонней связи обновляются обе стороны. Предыдущий пример с односторонними отношениями был проще.</p>
+<h1><span id="93">9.3. Удаление связей</span></h1>
+<p>Удаление связи между двумя сущностями осуществляется аналогично. Сделать это можно двумя способами: по элементу или ключу. Примеры:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co1">// Удаление по элементам</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getComments</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">removeElement</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">setAuthor</span><span class="br0">(</span><span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">removeElement</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">getUserFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">removeElement</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="co1">// Удаление по ключу</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getComments</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">remove</span><span class="br0">(</span><span class="re0">$ithComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">setAuthor</span><span class="br0">(</span><span class="kw4">null</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Для внесения этих изменений в базу данных нужно будет вызвать метод <strong>$em-&gt;flush()</strong>.</p>
+<p>Заметьте, что в двусторонней связи всегда обновляются обе стороны. Односторонние связи в этом отношении проще. Также имейте ввиду, что если вы явно укажете тип параметра в методах<em>, например </em><strong>setAddress(Address $address)</strong>, то PHP разрешит передачу этому методу значения <strong>NULL</strong> только если оно явно задано в качестве значения по умолчанию. В противном случае при удалении связи метод <strong>setAddress(null)</strong> потерпит неудачу. Если вам все-таки необходимо явно задать тип параметра <strong>(type-hinting)</strong>, то лучше создать специальный метод вроде <strong>removeAddress()</strong>. Такой подход улучшит инкапсуляцию класса, скрыв то, как этот класс будет обрабатывать ситуацию с отсутствующим адресом.</p>
+<p>При работе с коллекциями имейте ввиду, что коллекция это, по сути, упорядоченная карта (подобно обычному массиву в PHP). Вот почему при удалении нужно указать индекс или ключ. Метод <strong>removeElement</strong> имеет сложность <strong>O(n)</strong>, т.к. работает через функцию <strong>array_search</strong>, где <strong>n</strong> — это размер карты.</p>
+<blockquote><p>Doctrine на предмет обновлений всегда просматривает только сторону владельца связи, поэтому нет необходимости писать код, который будет обновлять коллекцию с обратной стороны. Это даст вам пару очков в производительности, т.к. не нужно будет лишний загружать эту коллекцию.</p></blockquote>
+<p>Очистить содержимое коллекции можно с помощью метода <strong>Collections::clear()</strong>. Следует помнить, что его использование в последующей операции <strong>flush()</strong> может привести к вызовам DELETE и UPDATE, которые не знают о сущностях, добавленных в коллекцию до этого. (Оригинал: <strong>You should be aware that using this method can lead to a straight and optimized database delete or update call during the flush operation that is not aware of entities that have been re-added to the collection</strong>).</p>
+<p>Скажем, вы очистили коллекцию тегов с помощью <strong>$post-&gt;getTags()-&gt;clear()</strong>, а затем вызывали <strong>$post-&gt;getTags()-&gt;add($tag)</strong>, добавив новый тег. В этом случае движок ORM не сможет распознать тег, который был там до этого, и как следствие, произведет два различных вызова к базе данных.</p>
+<h1><span id="94">9.4. Способы управления связями</span></h1>
+<p>На самом деле было бы отлично, если весь механизм работы со связями был спрятан внутри сущностей. Это привнесет целостность в архитектуру вашего приложения, ведь все детали касательно связей будут инкапсулированы в классе.</p>
+<p>Нижеприведенный код демонстрирует соответствующие изменения в сущностях <strong>User</strong> и <strong>Comment</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">//...</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> markCommentRead<span class="br0">(</span>Comment <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="co1">// Collections определяет интерфейс ArrayAccess</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">commentsRead</span><span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$comment</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addComment<span class="br0">(</span>Comment <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="kw1">if</span> <span class="br0">(</span><span class="kw3">count</span><span class="br0">(</span><span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">commentsAuthored</span><span class="br0">)</span> <span class="sy0">==</span> <span class="nu0">0</span><span class="br0">)</span> <span class="br0">{</span><br>
+            <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">setFirstComment</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="br0">}</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">comments</span><span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$comment</span><span class="sy0">;</span><br>
+        <span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">setAuthor</span><span class="br0">(</span><span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">private</span> <span class="kw2">function</span> setFirstComment<span class="br0">(</span>Comment <span class="re0">$c</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">firstComment</span> <span class="sy0">=</span> <span class="re0">$c</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addFavorite<span class="br0">(</span>Comment <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">favorites</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">addUserFavorite</span><span class="br0">(</span><span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> removeFavorite<span class="br0">(</span>Comment <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">favorites</span><span class="sy0">-&gt;</span><span class="me1">removeElement</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$comment</span><span class="sy0">-&gt;</span><span class="me1">removeUserFavorite</span><span class="br0">(</span><span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="kw2">class</span> Comment<br><span class="br0">{</span><br>
+    <span class="co1">// ..</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addUserFavorite<span class="br0">(</span>User <span class="re0">$user</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">userFavorites</span><span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$user</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> removeUserFavorite<span class="br0">(</span>User <span class="re0">$user</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">userFavorites</span><span class="sy0">-&gt;</span><span class="me1">removeElement</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Как вы могли заметить, методы <strong>addUserFavorite</strong> и <strong>removeUserFavorite</strong> не вызывают соответствующих методов <strong>addFavorite</strong> и <strong>removeFavorite</strong>, таким образом, двустороннее отношение, старого говоря, является незаконченным. Однако, если вы, наивно полагая, добавите вызов <strong>addFavorite</strong> в метод <strong>addUserFavorite</strong>, то получите бесконечный цикл. Как видите, работа с двусторонними связями в ООП не тривиальная задача, а инкапсуляция деталей работы с ними внутрь классов иногда бывает сложна.</p>
+<blockquote><p>Чтобы добиться идеальной инкапсуляции коллекций, не следует возвращать их напрямую из метода <strong>getCollectionName()</strong>, вместо него используйте <strong>$collection-&gt;toArray()</strong>. Таким образом, пользователь сущности не сможет обойти определенную вами логику обработки связей. Пример:</p></blockquote>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> User <span class="br0">{</span><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getReadComments<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">commentsRead</span><span class="sy0">-&gt;</span><span class="me1">toArray</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Этот подход, однако, всегда приводит к предварительной инициализации коллекции, со всеми вытекающими отсюда проблемами с производительностью, хотя все зависит от размера коллекции. При работе с коллекциями больших размеров хорошей идеей будет полностью скрыть весь механизм считывания в методах репозитория (EntityRepository).</p>
+<p>Не существует единственно верного способа работы с коллекциями. Все зависит, с одной стороны, от требований к вашим моделями, а с другой — от ваших предпочтений.</p>
+<h1><span id="95">9.5. Синхронизация двусторонних коллекций</span></h1>
+<p>При работе со связями типа “многие ко многим” вы как разработчик, возможно, захотите, чтобы при редактировании коллекций они всегда оставались синхронизированы с обоих сторон связи. Но Doctrine гарантирует согласование лишь при гидрации (при сохранении в БД), но не для вашего клиентского кода.</p>
+<p>Давайте посмотрим с чем вы можете столкнуться на примере уже известной связки <strong>User-Comment</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$favoriteComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="co1">// Здесь не происходит вызова $favoriteComment-&gt;getUserFavorites()-&gt;add($user);</span><br><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">contains</span><span class="br0">(</span><span class="re0">$favoriteComment</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// TRUE</span><br><span class="re0">$favoriteComment</span><span class="sy0">-&gt;</span><span class="me1">getUserFavorites</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">contains</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// FALSE</span>
+</div></div>
+<p>Существует два способа решения этой проблемы:<br>
+Игнорировать обновление обратной стороны связи в двусторонних отношениях, но никогда ничего не считывать оттуда при запросах, которые изменяют их состояние. При следующем запросе Doctrine соответствующим образом подготовит и согласует состояние связи.<br>
+Осуществлять синхронизацию двусторонних коллекций при помощи соответствующих методов. <strong>Reads of the Collections directly after changes are consistent then.</strong></p>
+<h1><span id="96_Transitive_persistence">9.6. Transitive persistence / Каскадные операции</span></h1>
+<p>Когда мы имеем дело с навороченным графом объектов, в котором переплетено множество связей, то операции сохранения, удаления, отсоединения и слияния отдельных сущностей могут оказаться весьма громоздкими. Поэтому Doctrine 2 обеспечивает механизм <strong>transitive persistence</strong> путем каскадного выполнения соответствующих операций. По умолчанию каскадность отключена.</p>
+<p>Существуют следующие опции каскадности:<br><strong>persist</strong> : Операции сохранения каскадно применяются к связанным сущностям.<br><strong>remove</strong> : Аналогично для удаления.<br><strong>merge</strong> : Аналогично для слияния.<br><strong>detach</strong> : Аналогично для отсоединения.<br><strong>all</strong> : Все вышеприведенные операции будут каскадно применены к связанным сущностям.</p>
+<blockquote><p>Все каскадные операции производятся в оперативной памяти. Это значит, что непосредственно перед началом операции коллекции и связанные с ними сущности загружаются в память, даже если у них настроена “ленивая загрузка”. При этом для каждой операции будут соответствующим образом запущенны обработчики событий жизненного цикла сущностей (коллбеки: <strong>beforPersist</strong>, <strong>afterPersists</strong> и т.д) если они есть.<br>
+Однако, при больших размерах коллекций, размещение графа объектов в памяти может привести к проблемам с производительностью. Поэтому взвесьте все “за” и “против”, определите преимущества и узкие места каждой каскадной операции.<br>
+Если вместо этого при удалении нужно использовать механизмы каскадности, предоставляемые базой данных, то каждую <strong>join column</strong> можно сконфигурировать с опцией <strong>onDelete</strong>. Читайте об этом в соответствующих главах, касающихся драйверов метаданных.</p></blockquote>
+<p>Следующий пример показывает расширение уже известной нам связки <strong>User-Comment</strong>. Предположим, что пользователь должен быть создан, когда он напишет свой первый комментарий:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="kw2">new</span> User<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$myFirstComment</span> <span class="sy0">=</span> <span class="kw2">new</span> Comment<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">addComment</span><span class="br0">(</span><span class="re0">$myFirstComment</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">persist</span><span class="br0">(</span><span class="re0">$myFirstComment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Есть в этом примере удалить вызов <strong>EntityManager#persist($myFirstComment)</strong>, то код потерпит неудачу, даже если вы сохраните вашего нового Юзера, добавив к нему новый Комментарий. Все дело в том, что Doctrine 2 не обрабатывает каскадно сущности, которые были только что созданы и не прикреплены к менеджеру сущностей.</p>
+<p>Вот аналогичный, но более сложный пример, в нем при удалении пользователя из системы удаляются все его комментарии:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="re0">$user</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'User'</span><span class="sy0">,</span> <span class="re0">$deleteUserId</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="kw1">foreach</span> <span class="br0">(</span><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getAuthoredComments</span><span class="br0">(</span><span class="br0">)</span> <span class="kw1">AS</span> <span class="re0">$comment</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">remove</span><span class="br0">(</span><span class="re0">$comment</span><span class="br0">)</span><span class="sy0">;</span><br><span class="br0">}</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">remove</span><span class="br0">(</span><span class="re0">$user</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Если не выполнить цикл и не пройтись по всем комментариям пользователя, Doctrine выполнит запрос <strong>UPDATE</strong> только для того, чтобы установить значения внешних ключей в <strong>NULL</strong>, таким образом после операции <strong>flush()</strong> из базы будет удален только сам пользователь.</p>
+<p>Чтобы Doctrine корректно обрабатывала оба случая можно изменить свойство <strong>User#commentsAuthored</strong>, добавив к нему опции каскадности <strong>“persist”</strong> и <strong>“remove”</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">//...</span><br>
+    <span class="co4">/**<br>
+     * Bidirectional - One-To-Many (INVERSE SIDE)<br>
+     *<br>
+     * @OneToMany(targetEntity="Comment", mappedBy="author", cascade={"persist", "remove"})<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$commentsAuthored</span><span class="sy0">;</span><br>
+    <span class="co1">//...</span><br><span class="br0">}</span>
+</div></div>
+<p>Хотя автоматическая каскадность весьма удобна, использовать ее нужно с осторожностью. Не присваивать каждой связи опцию <strong>cascade=all</strong>, это приведет лишь к снижению производительности. При активации каждую каскадную операцию Doctrine применит и к связи, будь она одиночной или коллекцией.<strong></strong></p>
+<h2><span id="961_Persistence_by_Reachability_Cascade_Persist">9.6.1. Persistence by Reachability: Cascade Persist</span></h2>
+<p>У операций каскадного сохранения существует дополнительная семантика. Если при вызове <strong>flush()</strong> Doctrine обнаружит в какой-нибудь из коллекций свежесозданные сущности <strong>(NEW)</strong>, то далее события будут развиваться по одному из трех сценариев:</p>
+<ul>
+<li>Новые сущности в коллекции, помещенные cascade=persist будут сохранены напрямую Doctrine</li>
+<li>Новые сущности в коллекции, не имеющие такой опции выдадут исключение в результате чего откат операции <strong>flush()</strong>.</li>
+<li>Коллекции, не имеющие новых сущностей будут пропущены.</li>
+</ul>
+<p>Этот подход называется <strong>Persistence by Reachability</strong>: когда связь настроена на каскадное сохранение, то все новые сущности, найденные в коллекциях у уже существующих сущностей, будут автоматически сохранены.</p>
+<h1><span id="97_8220Orphan_Removal8221">9.7. Паттерн “Orphan Removal”</span></h1>
+<p>Есть еще один подобный механизм, он задействуется только при удалении сущностей из коллекций. Если сущность типа <strong>A</strong> содержит внутренние ссылки на сущности типа <strong>B</strong>, то когда ссылка <strong>A</strong>-&gt;<strong>B</strong> удаляется (а, следовательно, связь разрывается), то и сущность <strong>B</strong> также будет удалена, потому что с этого момента она нигде не используется.</p>
+<p>Паттерн <strong>OrphanRemoval</strong> (“удаление объектов-сирот”) работает как со связями “один к одному” так и “один ко многим”.</p>
+<blockquote><p>При использовании параметра <strong>orphanRemoval=true</strong> Doctrine делает предположение, что сущности являются закрытыми и <strong>не будут</strong> повторно использоваться другими сущностями. Если пренебречь этим допущением, сущности будут удалены даже если вы присвоите такую осиротевшую сущность какой-либо другой.</p></blockquote>
+<p>Для примера рассмотрим приложение <strong>Addressbook</strong> (адресная книга), в котором есть сущности <strong>Contacts</strong>, <strong>Addresses</strong> и <strong>StandingData</strong>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="kw2">namespace</span> Addressbook<span class="sy0">;</span><br><br><span class="kw2">use</span> Doctrine\Common\Collections\ArrayCollection<span class="sy0">;</span><br><br><span class="co4">/**<br>
+ * @Entity<br>
+ */</span><br><span class="kw2">class</span> Contact<br><span class="br0">{</span><br>
+    <span class="co4">/** @Id @Column(type="integer") @GeneratedValue */</span><br>
+    <span class="kw2">private</span> <span class="re0">$id</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @OneToOne(targetEntity="StandingData", orphanRemoval=true) */</span><br>
+    <span class="kw2">private</span> <span class="re0">$standingData</span><span class="sy0">;</span><br><br>
+    <span class="co4">/** @OneToMany(targetEntity="Address", mappedBy="contact", orphanRemoval=true) */</span><br>
+    <span class="kw2">private</span> <span class="re0">$addresses</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">addresses</span> <span class="sy0">=</span> <span class="kw2">new</span> ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> newStandingData<span class="br0">(</span>StandingData <span class="re0">$sd</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">standingData</span> <span class="sy0">=</span> <span class="re0">$sd</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> removeAddress<span class="br0">(</span><span class="re0">$pos</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw3">unset</span><span class="br0">(</span><span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">addresses</span><span class="br0">[</span><span class="re0">$pos</span><span class="br0">]</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Следующий пример показывает, что произойдет, когда вы удалите ссылки:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><br><span class="re0">$contact</span> <span class="sy0">=</span> <span class="re0">$em</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st0">"Addressbook\Contact"</span><span class="sy0">,</span> <span class="re0">$contactId</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$contact</span><span class="sy0">-&gt;</span><span class="me1">newStandingData</span><span class="br0">(</span><span class="kw2">new</span> StandingData<span class="br0">(</span><span class="st0">"Firstname"</span><span class="sy0">,</span> <span class="st0">"Lastname"</span><span class="sy0">,</span> <span class="st0">"Street"</span><span class="br0">)</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$contact</span><span class="sy0">-&gt;</span><span class="me1">removeAddress</span><span class="br0">(</span><span class="nu0">1</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="re0">$em</span><span class="sy0">-&gt;</span><span class="kw3">flush</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<p>Здесь вы не только изменили саму сущность <strong>Contact</strong>, вы таже удалили ссылку на контактные данные <strong>(standing data)</strong> и ссылку на один контактный адрес. Когда будет вызван метод <strong>flush()</strong> из базы данных будут удалены не только ссылки, но и  старая сущность с контактными данными <strong>(staging data)</strong>, а также сущность Address. Они будут удалены потому что они ни с кем не связаны.</p>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_45959035"></div></div></div>
+
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/08/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/10/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>

@@ -1,0 +1,738 @@
+---
+layout: page
+title:  "6. Отображение связей"
+---
+
+
+		<p>В этой главе приводится описание того как Doctrine работает со связанными сущностями, т.е. сущностями, между которыми существуют некоторые отношения. Для начала будет дано описание концепции прямой и обратной сторон связи. Это очень важный момент, он поможет понять принцип работы двусторонних связей. Главное, нужно усвоить, что связи могут быть одно- и дву- сторонними.</p>
+<div id="toc_container" class="no_bullets">
+<p class="toc_title">Содержание</p>
+<ul class="toc_list">
+<li><a href="#61">6.1. Прямая и обратная стороны связи</a></li>
+<li><a href="#62">6.2. Коллекции</a></li>
+<li><a href="#63">6.3. Параметры отображения по-умолчанию</a></li>
+<li><a href="#64">6.4. Инициализация коллекций</a></li>
+<li><a href="#65___Runtime_Development">6.5. Валидация отображений в различных средах (Runtime и Development)</a></li>
+<li><a href="#66_8220_8221">6.6. Отношения “один к одному”, односторонние</a></li>
+<li><a href="#67_8220_8221">6.7. Отношения “один к одному”, двусторонние</a></li>
+<li><a href="#68_8220_8221">6.8. Отношения “один к одному” со ссылкой на себя же</a></li>
+<li><a href="#69_8220_8221__JoinTable">6.9. Отношения “один ко многим”, односторонние, с использованием @JoinTable</a></li>
+<li><a href="#610_8220_8221">6.10. Отношения “многие к одному”, односторонние</a></li>
+<li><a href="#611_8220_8221">6.11. Отношения “один ко многим”, двусторонние</a></li>
+<li><a href="#612_8220_8221">6.12. Отношения “один ко многим” со ссылкой на себя</a></li>
+<li><a href="#613_8220_8221">6.13. Отношения “многие ко многим”, односторонние</a></li>
+<li>
+<a href="#614_8220_8221">6.14. Отношения “многие ко многим”, двусторонние</a><ul><li><a href="#6141_Picking_Owning_and_Inverse_Side">6.14.1. Picking Owning and Inverse Side</a></li></ul>
+</li>
+<li><a href="#615_nbsp_8220_8221">6.15.  Отношения “многие ко многим” со ссылкой на себя</a></li>
+<li><a href="#616___8220To-Many8221">6.16. Сортировка коллекций в связях “To-Many”</a></li>
+</ul>
+</div>
+<h1><span id="61">6.1. Прямая и обратная стороны связи</span></h1>
+<p>При работе с двусторонними связями важно понимать суть прямой (owning) и обратной (inverse) сторон связи. Давайте начнем с простых правил:</p>
+<ul>
+<li>Отношения межу сущностями могут быть двусторонними и односторонними.</li>
+<li>У двустороннего отношения есть как прямая сторона (сторона владельца), так и обратная сторона.</li>
+<li>У односторонних отношений есть только прямая сторона.</li>
+<li>Именно прямая сторона отношения непосредственно влияет на все изменения, которые будут внесены в него в процессе работы приложения.</li>
+</ul>
+<p>Для <strong>двусторонних</strong> связей справедливы следующие правила:</p>
+<ul>
+<li>Обратная сторона отношения должна ссылаться на основную сторону с помощью атрибута <em>mappedBy</em>, который используется в аннотациях <em>OneToOne</em>, <em>OneToMany</em> и <em>ManyToMany</em>. Этот атрибут указывает на поле сущности, которое является “владельцем” этого отношения (и это поле расположено на “противоположном” конце связи).</li>
+<li>И наоборот, прямая сторона двустороннего отношения ссылается на обратную сторону с помощью атрибута <em>inversedBy</em>, который также используется в аннотациях <em>OneToOne</em>, <em>ManyToOne</em> и <em>ManyToMany</em>. Этот атрибут указывает на поле сущности, которое является обратной стороной отношения.</li>
+<li>В отношениях типа <em>OneToMany</em> и <em>ManyToOne</em> именно “Many”-сторона является прямой стороной связи, поэтому на ней нельзя использовать атрибут <em>mappedBy</em> — он применяется только на обратной стороне.</li>
+<li>Для двусторонних отношений типа <em>OneToOne</em> прямой стороной связи является та, которая содержит соответствующий внешний ключ (он описывается аннотацией <em>@JoinColumn(s))</em>.</li>
+<li>В отношениях типа <em>ManyToMany</em> любая сторона может быть прямой. <em>(Непонятно: the side that defines the @JoinTable and/or does not make use of the mappedBy attribute, thus using a default join table.)</em>
+</li>
+</ul>
+<p>Несколько запутанно, правда? На самом деле все не так сложно. Самое главное, запомните:</p>
+<p><strong>Именно прямая сторона связи определяет какие изменения в существующем отношении попадут в базу данных.</strong></p>
+<p>Чтобы понять это, давайте вспомним как работают двусторонние отношения в мире объектов. Возьмем два объекта, между которыми существует связь. На каждой стороне этой связи существует по ссылке, каждая из которых представляет эту самую связь, но изменять эти ссылки можно независимо друг от друга. Безусловно, в правильно спроектированном приложении вся семантика двусторонних связей должна полностью контролироваться разработчиком, это его ответственность. При использовании <em>Doctrine</em> ей просто нужно указать, какую из этих ссылок нужно хранить в базе данных, а какая там хранится не должна, потому что обе ссылки хранить невозможно, это абсурд. В этом и заключается концепция прямой и обратной связей.</p>
+<p>Когда изменения в отношение вносятся только с обратной стороны связи, <em>Doctrine</em> их проигнорирует. Поэтому для двусторонних отношений нужно всегда обновлять обе стороны (ну или с точки зрения Doctrine, хотя бы прямую сторону). Сторона владельца в двусторонней связи — эта та точка, в которой находится условный наблюдатель от <em>Doctrine</em> <em>(ха-ха, прямо как на выборах, прим. перев.)</em>, анализирующий связь, именно так она определяет текущее состояние связи и сам факт ее изменения (например, есть ли необходимость обновить ее в базе данных).</p>
+<blockquote><p>Концепция прямой и обратной сторон является одним из краеугольных камней технологии <em>ORM</em> и к предметной области вашего приложения она не имеет отношения. Поэтому то, что в вашем приложении понимается под стороной владельца, в терминах <em>Doctrine</em> может трактоваться иначе. И на самом деле это не играет роли.</p></blockquote>
+<h1><span id="62">6.2. Коллекции</span></h1>
+<p>В примерах к этой главе при рассмотрении связей типа “ко многим” мы будет использовать специальный интерфейс <em>Collection</em> и соответствующую ему реализацию <em>ArrayCollection</em>, которая определена в пространстве имен <em>Doctrine\Common\Collections</em>. Для чего это нужно и почему нельзя использовать простые массивы? К сожалению, массивы в <em>PHP</em>, конечно, удобны во многих случаях, но с их помощью нельзя полноценно представлять наборы объектов бизнес-логики, особенно вне контекста <em>ORM</em>. Причина состоит в том, что стандартные массивы <em>PHP</em> не могут быть прозрачно расширены для работы с продвинутыми фишками <em>ORM</em>. Классы и интерфейсы, которые лежат ближе всего к концепции коллекции, это <em>ArrayAccess</em> и <em>ArrayObject</em>, но пока экземпляры этих классов не смогут применятся в тех же конструкциях, где применяются обычные массивы (возможно, это будет сделано в <em>PHP6</em>), эффективность их будет ограничена. В принципе, можно использовать и <em>ArrayAccess</em> вместо <em>Collection</em>, ведь интерфейс <em>Collection</em> расширяет <em>ArrayAccess</em>, но это не даст вам нужной гибкости работы с коллекциями, потому что <em>API</em> <em>ArrayAccess</em> весьма примитивен (и это сделано специально), и, что более важно, нельзя будет передать эту коллекцию в всякие <em>PHP</em> функции, что делает работу с ней очень сложной.</p>
+<blockquote><p>Интерфейс <em>Collection</em> и класс <em>ArrayCollection</em>, как и все в пространстве имен <em>Doctrine</em>, не относится ни к компоненту <em>ORM</em>, ни к <em>DBAL</em>. Это просто обычный <em>PHP</em> класс,  не имеющий никаких внешних зависимостей за исключением разве что <em>PHP</em> и библиотеки <em>SPL</em>. Использование этого класса в приложении не требует его непосредственного контактирования со слоем, управляющим хранением данных (persistent layer). Класс <em>Collection</em>, как и все в модуле <em>Common</em>, не являются частью этого слоя. Вы можете вообще удалить <em>Doctrine</em>, оставив один этот класс, и весь код, его использующий продолжит нормально функционировать.</p></blockquote>
+<h1><span id="63">6.3. Параметры отображения по-умолчанию</span></h1>
+<p>Прежде чем мы начнем описывать все возможные отображения для связей, вам следует уяснить следующее. В процессе описания связей будут применяться аннотации <em>@JoinColumn</em> и <em>@JoinTable</em>. Они определяют какие столбцы в БД будут непосредственно отвечать за связь. Эти аннотации являются опциональными и имеют значения по умолчанию. Для отношения типов <em>OneToOne</em> или <em>ManyToOne</em>, используются следующие дефолтные значения:</p>
+<div class="codecolorer-container text odiszapc" style="overflow:auto;white-space:nowrap;"><div class="text codecolorer">name: "_id"<br>
+referencedColumnName: "id"</div></div>
+<p>Давайте для примера рассмотрим такое отображение:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/** @OneToOne(targetEntity="Shipping") */</span><br><span class="kw2">private</span> <span class="re0">$shipping</span><span class="sy0">;</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">class</span>=<span class="st0">"Product"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-one</span> <span class="re0">field</span>=<span class="st0">"shipping"</span> <span class="re0">target-entity</span>=<span class="st0">"Shipping"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">Product</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    oneToOne</span>:<span class="co4"><br>
+        shipping</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Shipping</div></div>
+<p>Это абсолютно тоже самое, что и следующий, более навороченный вариант:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/**<br>
+* @OneToOne(targetEntity="Shipping")<br>
+* @JoinColumn(name="shipping_id", referencedColumnName="id")<br>
+*/</span><br><span class="kw2">private</span> <span class="re0">$shipping</span><span class="sy0">;</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">class</span>=<span class="st0">"Product"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-one</span> <span class="re0">field</span>=<span class="st0">"shipping"</span> <span class="re0">target-entity</span>=<span class="st0">"Shipping"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"shipping_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;/one-to-one<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">Product</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    oneToOne</span>:<span class="co4"><br>
+        shipping</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Shipping<span class="co4"><br>
+            joinColumn</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>shipping_id<span class="co3"><br>
+                referencedColumnName</span><span class="sy2">: </span>id</div></div>
+<p>Конструкция <em>@JoinTable</em>, используемая для отображения связей <em>ManyToMany</em> имеет аналогичные значения по умолчанию:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">//...</span><br>
+    <span class="co4">/** @ManyToMany(targetEntity="Group") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br>
+    <span class="co1">//...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">class</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"groups"</span> <span class="re0">target-entity</span>=<span class="st0">"Group"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        groups</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Group</div></div>
+<p>В более полной нотации это выглядит так:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">//...</span><br>
+    <span class="co4">/**<br>
+    * @ManyToMany(targetEntity="Group")<br>
+    * @JoinTable(name="User_Group",<br>
+    * joinColumns={@JoinColumn(name="User_id", referencedColumnName="id")},<br>
+    * inverseJoinColumns={@JoinColumn(name="Group_id", referencedColumnName="id")}<br>
+    * )<br>
+    */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br>
+    <span class="co1">//...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">class</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"groups"</span> <span class="re0">target-entity</span>=<span class="st0">"Group"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-table</span> <span class="re0">name</span>=<span class="st0">"User_Group"</span><span class="re2">&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">id</span>=<span class="st0">"User_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/join-columns<span class="re2">&gt;</span></span></span><br>
+                <span class="sc3"><span class="re1">&lt;inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">id</span>=<span class="st0">"Group_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+            <span class="sc3"><span class="re1">&lt;/join-table<span class="re2">&gt;</span></span></span><br>
+        <span class="sc3"><span class="re1">&lt;/many-to-many<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br>
+ <span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        groups</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Group<span class="co4"><br>
+            joinTable</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>User_Group<span class="co4"><br>
+                joinColumns</span>:<span class="co4"><br>
+                    User_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id<span class="co4"><br>
+                inverseJoinColumns</span>:<span class="co4"><br>
+                    Group_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id</div></div>
+<p>В этом варианте имя таблицы, используемой для связи по умолчанию соответствует неполным именам участвующих в отношении классов, разделенных символом подчеркивания. Имена столбцов в этой таблице по умолчанию складывается из неполного имени целевого класса с суффиксом “<strong>_id</strong>“. Параметр <strong>referencedColumnName</strong> по умолчанию всегда равен “<strong>id</strong>“, это справедливо как для отношений “один к одному”, так и для “многие к одному”.</p>
+<p>Если вас устраивают значения по-умолчанию можно не писать лишнего кода.</p>
+<h1><span id="64">6.4. Инициализация коллекций</span></h1>
+<p>При работе с полями, содержащими коллекции сущностей стоит быть внимательным. Допустим, у нас есть сущность <em>User</em>, которая содержит коллекцию групп:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co4">/** @ManyToMany(targetEntity="Group") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getGroups<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">groups</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Если рассматривать этот код отдельно, то видно, что поле <em>$groups</em> является только экземпляром класса <em>Doctrine\Common\Collections\Collection</em>, и пользователь может запросить его с помощью соответствующего метода. Однако,  сразу после создания объекта <em>User</em> поле <em>$groups</em>, очевидно, будет иметь значение <em>NULL</em>.</p>
+<p>Такие поля нужно заранее инициализировать в конструкторе пустыми объектами <em>ArrayCollection</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">use</span> Doctrine\Common\Collections\ArrayCollection<span class="sy0">;</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co4">/** @ManyToMany(targetEntity="Group") */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">groups</span> <span class="sy0">=</span> <span class="kw2">new</span> ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> getGroups<span class="br0">(</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="kw1">return</span> <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">groups</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Вот. И теперь следующий код будет нормально работать даже если сущность еще не связана с менеджером <em>EntityManager</em>:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$group</span> <span class="sy0">=</span> <span class="re0">$entityManager</span><span class="sy0">-&gt;</span><span class="me1">find</span><span class="br0">(</span><span class="st_h">'Group'</span><span class="sy0">,</span> <span class="re0">$groupId</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span> <span class="sy0">=</span> <span class="kw2">new</span> User<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$user</span><span class="sy0">-&gt;</span><span class="me1">getGroups</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">-&gt;</span><span class="me1">add</span><span class="br0">(</span><span class="re0">$group</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h1><span id="65___Runtime_Development">6.5. Валидация отображений в различных средах (Runtime и Development)</span></h1>
+<p>По причинам, связанным с производительностью <em>Doctrine 2</em> не производит полную валидацию связи, т.е. проверку на предмет того правильно ли она мэппится на схему базы данных. Нужно самостоятельно проверять корректно ли настроена та или иная связь. Сделать это через командную строку:</p>
+<div class="codecolorer-container bash odiszapc" style="overflow:auto;white-space:nowrap;"><div class="bash codecolorer">doctrine orm:validate-schema</div></div>
+<p>Либо выполнить валидацию вручную:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">use</span> Doctrine\ORM\Tools\SchemaValidator<span class="sy0">;</span><br><br><span class="re0">$validator</span> <span class="sy0">=</span> <span class="kw2">new</span> SchemaValidator<span class="br0">(</span><span class="re0">$entityManager</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$errors</span> <span class="sy0">=</span> <span class="re0">$validator</span><span class="sy0">-&gt;</span><span class="me1">validateMapping</span><span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><br><span class="kw1">if</span> <span class="br0">(</span><span class="kw3">count</span><span class="br0">(</span><span class="re0">$errors</span><span class="br0">)</span> <span class="sy0">&gt;</span> <span class="nu0">0</span><span class="br0">)</span> <span class="br0">{</span><br>
+    <span class="co1">// Lots of errors!</span><br>
+    <span class="kw1">echo</span> <span class="kw3">implode</span><span class="br0">(</span><span class="st0">"<span class="es1">\n</span><span class="es1">\n</span>"</span><span class="sy0">,</span> <span class="re0">$errors</span><span class="br0">)</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<blockquote><p>Если с отображением что-то не так, массив <em>$errors</em> будет содержать сообщения об ошибках. Единственный параметр, валидация которого не производится, это <em>referencedColumnName</em>. Он должен всегда равняться первичному ключу, иначе <em>Doctrine</em> вообще не будет работать.</p></blockquote>
+<blockquote><p>Основная ошибка заключается в использовании обратного слеша в полном имени класса. Когда вы записываете это имя в виде строки (например в настройках отображения) обратный слеш в начале строки нужно убрать. Для обратной совместимости <em>PHP</em> делает это с помощью функции <em>get_class()</em> или с помощью механизма рефлексии.</p></blockquote>
+<h1><span id="66_8220_8221">6.6. Отношения “один к одному”, односторонние</span></h1>
+<p>Односторонние связи типа “один к одному” являются, наверное, самыми распространенными. Вот вам пример: сущность <em>Product</em> (товар) имеет один объект <em>Shipping</em> (отгрузка товара). При этом в <em>Shipping</em> нет ссылки обратно на <em>Product</em>, поэтому отношение и называется односторонним: <em>Product -&gt; Shipping</em>.</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Product<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+   <span class="co4">/**<br>
+    * @OneToOne(targetEntity="Shipping")<br>
+    * @JoinColumn(name="shipping_id", referencedColumnName="id")<br>
+    */</span><br>
+    <span class="kw2">private</span> <span class="re0">$shipping</span><span class="sy0">;</span><br><br>
+   <span class="co1">// ...</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Shipping<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">class</span>=<span class="st0">"Product"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-one</span> <span class="re0">field</span>=<span class="st0">"shipping"</span> <span class="re0">target-entity</span>=<span class="st0">"Shipping"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"shipping_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;/one-to-one<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">Product</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    oneToOne</span>:<span class="co4"><br>
+        shipping</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Shipping<span class="co4"><br>
+            joinColumn</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>shipping_id<span class="co3"><br>
+                referencedColumnName</span><span class="sy2">: </span>id</div></div>
+<p>Обратите внимание, что использовать аннотацию @JoinColumn здесь не обязательно, т.к. значение по умолчанию дадут то же результат.</p>
+<p>Итоговая схема MySQL будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Product <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    shipping_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Shipping <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Product <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>shipping_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Shipping<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="67_8220_8221">6.7. Отношения “один к одному”, двусторонние</span></h1>
+<p>В качестве примера возьмем отношения между объектами <em>Customer</em> (заказчик) и <em>Cart</em> (корзина). Смотрите, у <em>Cart</em> есть обратная ссылка на <em>Customer</em>, поэтому эта связь является двусторонней:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Customer<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+   <span class="co4">/**<br>
+    * @OneToOne(targetEntity="Cart", mappedBy="customer")<br>
+    */</span><br>
+    <span class="kw2">private</span> <span class="re0">$cart</span><span class="sy0">;</span><br><br>
+   <span class="co1">// ...</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Cart<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+   <span class="co4">/**<br>
+    * @OneToOne(targetEntity="Customer", inversedBy="cart")<br>
+    * @JoinColumn(name="customer_id", referencedColumnName="id")<br>
+    */</span><br>
+    <span class="kw2">private</span> <span class="re0">$customer</span><span class="sy0">;</span><br><br>
+   <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Customer"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-one</span> <span class="re0">field</span>=<span class="st0">"cart"</span> <span class="re0">target-entity</span>=<span class="st0">"Cart"</span> <span class="re0">mapped-by</span>=<span class="st0">"customer"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Cart"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-one</span> <span class="re0">field</span>=<span class="st0">"customer"</span> <span class="re0">target-entity</span>=<span class="st0">"Customer"</span> <span class="re0">inversed-by</span>=<span class="st0">"cart"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"customer_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;/one-to-one<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">Customer</span>:<span class="co4"><br>
+    oneToOne</span>:<span class="co4"><br>
+        cart</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Cart<span class="co3"><br>
+            mappedBy</span><span class="sy2">: </span>customer<span class="co4"><br>
+Cart</span>:<span class="co4"><br>
+    oneToOne</span>:<span class="co4"><br>
+        customer</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Customer<span class="co3"><br>
+            inversedBy</span><span class="sy2">: </span>cart<span class="co4"><br>
+            joinColumn</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>customer_id<span class="co3"><br>
+                referencedColumnName</span><span class="sy2">: </span>id</div></div>
+<p>Обратите внимание, что использовать аннотацию <em>@JoinColumn</em> здесь не обязательно, т.к. значение по-умолчанию дадут то же результат.</p>
+<p>Итоговая схема <em>MySQL</em> будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Cart <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    customer_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Customer <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Cart <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>customer_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Customer<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<p>Посмотрите как определен внешний ключ на прямой стороне отношения — таблице <em>Cart</em>.</p>
+<h1><span id="68_8220_8221">6.8. Отношения “один к одному” со ссылкой на себя же</span></h1>
+<p>Такие отношения в <em>Doctrine</em> реализовываются весьма просто:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Student<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+   <span class="co4">/**<br>
+    * @OneToOne(targetEntity="Student")<br>
+    * @JoinColumn(name="mentor_id", referencedColumnName="id")<br>
+    */</span><br>
+    <span class="kw2">private</span> <span class="re0">$mentor</span><span class="sy0">;</span><br><br>
+   <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p>Обратите внимание, что использовать аннотацию <em>@JoinColumn</em> здесь не обязательно, т.к. значение по умолчанию дадут то же результат.</p>
+<p>Итоговая схема <em>MySQL</em> будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Student <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    mentor_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Student <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>mentor_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Student<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="69_8220_8221__JoinTable">6.9. Отношения “один ко многим”, односторонние, с использованием @JoinTable</span></h1>
+<p>Односторонние связи типа “один ко многим” можно определять через подсоединяемую таблицу. С точки зрения Doctrine это выглядит как одностороннее отношение “многие ко многим”, где у одной из подсоединяемых колонок указан флаг уникальности, это и обеспечивает функционирование подобно отношениям “один ко многим”. Следующий пример описывает сказанное:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="Phonenumber")<br>
+     * @JoinTable(name="users_phonenumbers",<br>
+     * joinColumns={@JoinColumn(name="user_id", referencedColumnName="id")},<br>
+     * inverseJoinColumns={@JoinColumn(name="phonenumber_id", referencedColumnName="id", unique=true)}<br>
+     * )<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$phonenumbers</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">phonenumbers</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Phonenumber<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"phonenumbers"</span> <span class="re0">target-entity</span>=<span class="st0">"Phonenumber"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-table</span> <span class="re0">name</span>=<span class="st0">"users_phonenumbers"</span><span class="re2">&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"user_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/join-columns<span class="re2">&gt;</span></span></span><br>
+                <span class="sc3"><span class="re1">&lt;inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"phonenumber_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re0">unique</span>=<span class="st0">"true"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+            <span class="sc3"><span class="re1">&lt;/join-table<span class="re2">&gt;</span></span></span><br>
+        <span class="sc3"><span class="re1">&lt;/many-to-many<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        phonenumbers</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Phonenumber<span class="co4"><br>
+            joinTable</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>users_phonenumbers<span class="co4"><br>
+                joinColumns</span>:<span class="co4"><br>
+                    user_id</span>:<span class="co3"><br>
+                    referencedColumnName</span><span class="sy2">: </span>id<br>
+                inverseJoinColumns<span class="co4"><br>
+                    phonenumber_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id<span class="co3"><br>
+                        unique</span><span class="sy2">: </span>true</div></div>
+<blockquote><p>Описанные отношения работают только с использованием аннотации <em>@ManyToMany</em> совместно с ограничителем <em>unique.</em></p></blockquote>
+<p>Итоговая схема <em>MySQL</em> будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> users_phonenumbers <span class="br0">(</span><br>
+    user_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    phonenumber_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">UNIQUE</span> <span class="kw1">INDEX</span> users_phonenumbers_phonenumber_id_uniq <span class="br0">(</span>phonenumber_id<span class="br0">)</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>user_id<span class="sy0">,</span> phonenumber_id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Phonenumber <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> users_phonenumbers <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>user_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> <span class="kw1">USER</span><span class="br0">(</span>id<span class="br0">)</span>;<br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> users_phonenumbers <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>phonenumber_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Phonenumber<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="610_8220_8221">6.10. Отношения “многие к одному”, односторонние</span></h1>
+<p>Отношение типа “многие к одному” определяются следующим образом:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToOne(targetEntity="Address")<br>
+     * @JoinColumn(name="address_id", referencedColumnName="id")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$address</span><span class="sy0">;</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Address<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+       <span class="sc3"><span class="re1">&lt;many-to-one</span> <span class="re0">field</span>=<span class="st0">"address"</span> <span class="re0">target-entity</span>=<span class="st0">"Address"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToOne</span>:<span class="co4"><br>
+        address</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Address</div></div>
+<blockquote><p>Обратите внимание, что использовать аннотацию <em>@JoinColumn</em> здесь не обязательно, т.к. по умолчанию и так будут использоваться колонки <em>address_id</em> и <em>id</em>. Можно их и не указывать.</p></blockquote>
+<p>Итоговая схема MySQL будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    address_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Address <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>address_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Address<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="611_8220_8221">6.11. Отношения “один ко многим”, двусторонние</span></h1>
+<p>Двусторонние отношения вида “один ко многим” весьма распространены. Следующий пример показывает их реализацию на примере классов <em>Product</em> и <em>Feature</em>:</p>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Product"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-many</span> <span class="re0">field</span>=<span class="st0">"features"</span> <span class="re0">target-entity</span>=<span class="st0">"Feature"</span> <span class="re0">mapped-by</span>=<span class="st0">"product"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Feature"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-one</span> <span class="re0">field</span>=<span class="st0">"product"</span> <span class="re0">target-entity</span>=<span class="st0">"Product"</span> <span class="re0">inversed-by</span>=<span class="st0">"features"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"product_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;/many-to-one<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p>Обратите внимание, что использовать аннотацию<em> @JoinColumn</em> здесь не обязательно, т.к. значение по умолчанию дадут то же результат.</p>
+<p>Итоговая схема <em>MySQL</em> будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Product <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Feature <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    product_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Feature <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>product_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Product<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="612_8220_8221">6.12. Отношения “один ко многим” со ссылкой на себя</span></h1>
+<p>Пример показывает как настроить иерархию объектов Category с помощью отношения, ссылающегося на само себя. Этот подход позволяет реализовать иерархию категорий, в терминах БД называемой “списком смежных вершин”.</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Category<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="co4">/**<br>
+     * @OneToMany(targetEntity="Category", mappedBy="parent")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$children</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToOne(targetEntity="Category", inversedBy="children")<br>
+     * @JoinColumn(name="parent_id", referencedColumnName="id")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$parent</span><span class="sy0">;</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">children</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Category"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;one-to-many</span> <span class="re0">field</span>=<span class="st0">"children"</span> <span class="re0">target-entity</span>=<span class="st0">"Category"</span> <span class="re0">mapped-by</span>=<span class="st0">"parent"</span> <span class="re2">/&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-one</span> <span class="re0">field</span>=<span class="st0">"parent"</span> <span class="re0">target-entity</span>=<span class="st0">"Category"</span> <span class="re0">inversed-by</span>=<span class="st0">"children"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">Category</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    oneToMany</span>:<span class="co4"><br>
+        children</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Category<span class="co3"><br>
+            mappedBy</span><span class="sy2">: </span>parent<span class="co4"><br>
+    manyToOne</span>:<span class="co4"><br>
+        parent</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Category<span class="co3"><br>
+            inversedBy</span><span class="sy2">: </span>children</div></div>
+<p>Обратите внимание, что использовать аннотацию <em>@JoinColumn</em> здесь не обязательно, т.к. значение по умолчанию дадут то же результат.</p>
+<p>Итоговая схема <em>MySQL</em> будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> Category <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    parent_id <span class="kw1">INT</span> <span class="kw1">DEFAULT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> Category <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>parent_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> Category<span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="613_8220_8221">6.13. Отношения “многие ко многим”, односторонние</span></h1>
+<p>В реальных преложениях отношения типа “многие ко многим” встречаются реже. Следующий пример показывает как они определяются на примере сущностей <em>User</em> и <em>Group</em>:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="Group")<br>
+     * @JoinTable(name="users_groups",<br>
+     * joinColumns={@JoinColumn(name="user_id", referencedColumnName="id")},<br>
+     * inverseJoinColumns={@JoinColumn(name="group_id", referencedColumnName="id")}<br>
+     * )<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">groups</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Group<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML</strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"groups"</span> <span class="re0">target-entity</span>=<span class="st0">"Group"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-table</span> <span class="re0">name</span>=<span class="st0">"users_groups"</span><span class="re2">&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"user_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/join-columns<span class="re2">&gt;</span></span></span><br>
+                <span class="sc3"><span class="re1">&lt;inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"group_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+            <span class="sc3"><span class="re1">&lt;/join-table<span class="re2">&gt;</span></span></span><br>
+        <span class="sc3"><span class="re1">&lt;/many-to-many<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        groups</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Group<span class="co4"><br>
+            joinTable</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>users_groups<span class="co4"><br>
+                joinColumns</span>:<span class="co4"><br>
+                    user_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id<span class="co4"><br>
+                inverseJoinColumns</span>:<span class="co4"><br>
+                    group_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id</div></div>
+<p>Итоговая схема MySQL будет выглядеть так:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> users_groups <span class="br0">(</span><br>
+    user_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    group_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>user_id<span class="sy0">,</span> group_id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">GROUP</span> <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> users_groups <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>user_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> <span class="kw1">USER</span><span class="br0">(</span>id<span class="br0">)</span>;<br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> users_groups <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>group_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> <span class="kw1">GROUP</span><span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<blockquote><p>Так почему же такие связи реже встречаются в повседневной жизни? Все дело в том, что часто вам нужно привязать к связи какие-то дополнительные атрибуты, для чего под эту связь потребуется создать отдельный класс (связь <em>ManyToMany</em> это сделать не позволяет, здесь лишь будет создана таблица с двумя столбцами.) И, как следствие, связь “многие ко многим” в явном виде исчезает, а вместо нее появятся уже две связи — “один ко многим” и “многие к одному”, связывающие между собой три отдельных класса.</p></blockquote>
+<h1><span id="614_8220_8221">6.14. Отношения “многие ко многим”, двусторонние</span></h1>
+<p>Эти отношения аналогичны описанным выше, но они двусторонние:</p>
+<p><strong>PHP</strong></p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="Group", inversedBy="users")<br>
+     * @JoinTable(name="users_groups")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">groups</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span><br><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> Group<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="User", mappedBy="groups")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$users</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">users</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p><strong>XML<br></strong></p>
+<div class="codecolorer-container xml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="xml codecolorer">
+<span class="sc3"><span class="re1">&lt;doctrine-mapping<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"User"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"groups"</span> <span class="re0">inversed-by</span>=<span class="st0">"users"</span><span class="re2">&gt;</span></span><br>
+            <span class="sc3"><span class="re1">&lt;join-table</span> <span class="re0">name</span>=<span class="st0">"users_groups"</span><span class="re2">&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"user_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/join-columns<span class="re2">&gt;</span></span></span><br>
+                <span class="sc3"><span class="re1">&lt;inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+                    <span class="sc3"><span class="re1">&lt;join-column</span> <span class="re0">name</span>=<span class="st0">"group_id"</span> <span class="re0">referenced-column-name</span>=<span class="st0">"id"</span> <span class="re2">/&gt;</span></span><br>
+                <span class="sc3"><span class="re1">&lt;/inverse-join-columns<span class="re2">&gt;</span></span></span><br>
+            <span class="sc3"><span class="re1">&lt;/join-table<span class="re2">&gt;</span></span></span><br>
+        <span class="sc3"><span class="re1">&lt;/many-to-many<span class="re2">&gt;</span></span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><br>
+    <span class="sc3"><span class="re1">&lt;entity</span> <span class="re0">name</span>=<span class="st0">"Group"</span><span class="re2">&gt;</span></span><br>
+        <span class="sc3"><span class="re1">&lt;many-to-many</span> <span class="re0">field</span>=<span class="st0">"users"</span> <span class="re0">mapped-by</span>=<span class="st0">"groups"</span> <span class="re2">/&gt;</span></span><br>
+    <span class="sc3"><span class="re1">&lt;/entity<span class="re2">&gt;</span></span></span><br><span class="sc3"><span class="re1">&lt;/doctrine-mapping<span class="re2">&gt;</span></span></span>
+</div></div>
+<p><strong>YAML</strong></p>
+<div class="codecolorer-container yaml odiszapc" style="overflow:auto;white-space:nowrap;"><div class="yaml codecolorer">
+<span class="co4">User</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        groups</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>Group<span class="co3"><br>
+            inversedBy</span><span class="sy2">: </span>users<span class="co4"><br>
+            joinTable</span>:<span class="co3"><br>
+                name</span><span class="sy2">: </span>users_groups<span class="co4"><br>
+                joinColumns</span>:<span class="co4"><br>
+                    user_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id<span class="co4"><br>
+                inverseJoinColumns</span>:<span class="co4"><br>
+                    group_id</span>:<span class="co3"><br>
+                        referencedColumnName</span><span class="sy2">: </span>id<br><span class="co4"><br>
+Group</span>:<span class="co3"><br>
+    type</span><span class="sy2">: </span>entity<span class="co4"><br>
+    manyToMany</span>:<span class="co4"><br>
+        users</span>:<span class="co3"><br>
+            targetEntity</span><span class="sy2">: </span>User<span class="co3"><br>
+            mappedBy</span><span class="sy2">: </span>groups</div></div>
+<p>Итоговая схема базы данных будет такая же как в предыдущем примере для односторонней связи.</p>
+<h2><span id="6141_Picking_Owning_and_Inverse_Side">6.14.1. Picking Owning and Inverse Side</span></h2>
+<p>Для связей “многие ко многим” можно указать какая сущность представляет прямую, а какая обратную сторону связи. Чтобы вам как разработчкику было проще определиться с тем, какая из сущностей больше подходит на роль прямой стороны связи, используйте следующее правило. Просто ответьте на вопрос, какая из сущностей отвечает за управление соединением, и это и будет прямая сторона.</p>
+<p>Для примера возьмем две сущности: <em>Article</em> (статья) и <em>Tag</em> (тег). Всякий раз, когда вам нужно связать эти две сущности, в большинстве случаев именно <em>Article</em> будет отвечать за эту связь. И всякий раз при создании новой статьи, вам нужно буде соединить ее с существующими или новыми тегами. HTML-форма, отвечающая за создание статей вероятно так и работает, позволяя непосредственно указывать теги. Вот почему в качестве прямой стороны нужно выбрать <em>Article</em>, ваш код в этом случае будет более понятен, т.к. вы создаете модель в <em>Doctrine</em> в соответствии с тем, как эта связь функционирует в реальной жизни:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="kw2">class</span> Article<br><span class="br0">{</span><br>
+    <span class="kw2">private</span> <span class="re0">$tags</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addTag<span class="br0">(</span>Tag <span class="re0">$tag</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+        <span class="re0">$tag</span><span class="sy0">-&gt;</span><span class="me1">addArticle</span><span class="br0">(</span><span class="re0">$this</span><span class="br0">)</span><span class="sy0">;</span> <span class="co1">// synchronously updating inverse side</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">tags</span><span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$tag</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span><br><br><span class="kw2">class</span> Tag<br><span class="br0">{</span><br>
+    <span class="kw2">private</span> <span class="re0">$articles</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> addArticle<span class="br0">(</span>Article <span class="re0">$article</span><span class="br0">)</span><br>
+    <span class="br0">{</span><br>
+       <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">articles</span><span class="br0">[</span><span class="br0">]</span> <span class="sy0">=</span> <span class="re0">$article</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><span class="br0">}</span>
+</div></div>
+<p>Это позволит разместить механизм добавления тегов на Article-стороне связи:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="re0">$article</span> <span class="sy0">=</span> <span class="kw2">new</span> Article<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">addTag</span><span class="br0">(</span><span class="re0">$tagA</span><span class="br0">)</span><span class="sy0">;</span><br><span class="re0">$article</span><span class="sy0">-&gt;</span><span class="me1">addTag</span><span class="br0">(</span><span class="re0">$tagB</span><span class="br0">)</span><span class="sy0">;</span>
+</div></div>
+<h1><span id="615_nbsp_8220_8221">6.15.  Отношения “многие ко многим” со ссылкой на себя</span></h1>
+<p>Да, они могу ссылаться на сами себя. Типичный сценарий выглядит так: у пользователя <em>User</em> есть друзья, при этом целевая сущность этого отношения это тоже <em>User</em>, таким образом имеет место ссылка на самого себя. В этом примере используется двусторонняя связь: у <em>User</em> есть поле <em>$friendsWithMe</em> и поле <em>$myFriends</em>.</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="User", mappedBy="myFriends")<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$friendsWithMe</span><span class="sy0">;</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="User", inversedBy="friendsWithMe")<br>
+     * @JoinTable(name="friends",<br>
+     * joinColumns={@JoinColumn(name="user_id", referencedColumnName="id")},<br>
+     * inverseJoinColumns={@JoinColumn(name="friend_user_id", referencedColumnName="id")}<br>
+     * )<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$myFriends</span><span class="sy0">;</span><br><br>
+    <span class="kw2">public</span> <span class="kw2">function</span> __construct<span class="br0">(</span><span class="br0">)</span> <span class="br0">{</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">friendsWithMe</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+        <span class="re0">$this</span><span class="sy0">-&gt;</span><span class="me1">myFriends</span> <span class="sy0">=</span> <span class="kw2">new</span> \Doctrine\Common\Collections\ArrayCollection<span class="br0">(</span><span class="br0">)</span><span class="sy0">;</span><br>
+    <span class="br0">}</span><br><br>
+    <span class="co1">// ...</span><br><span class="br0">}</span>
+</div></div>
+<p>Схема БД:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">CREATE</span> <span class="kw1">TABLE</span> <span class="kw1">USER</span> <span class="br0">(</span><br>
+    id <span class="kw1">INT</span> <span class="kw1">AUTO_INCREMENT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">CREATE</span> <span class="kw1">TABLE</span> friends <span class="br0">(</span><br>
+    user_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    friend_user_id <span class="kw1">INT</span> <span class="kw1">NOT</span> <span class="kw1">NULL</span><span class="sy0">,</span><br>
+    <span class="kw1">PRIMARY</span> <span class="kw1">KEY</span><span class="br0">(</span>user_id<span class="sy0">,</span> friend_user_id<span class="br0">)</span><br><span class="br0">)</span> ENGINE <span class="sy0">=</span> InnoDB;<br><br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> friends <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>user_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> <span class="kw1">USER</span><span class="br0">(</span>id<span class="br0">)</span>;<br><span class="kw1">ALTER</span> <span class="kw1">TABLE</span> friends <span class="kw1">ADD</span> <span class="kw1">FOREIGN</span> <span class="kw1">KEY</span> <span class="br0">(</span>friend_user_id<span class="br0">)</span> <span class="kw1">REFERENCES</span> <span class="kw1">USER</span><span class="br0">(</span>id<span class="br0">)</span>;</div></div>
+<h1><span id="616___8220To-Many8221">6.16. Сортировка коллекций в связях “To-Many”</span></h1>
+<p>Во многих случаях при запросе сущности из БД вам нужно получать коллекции в уже отсортированном виде. Чтобы сделать это нужно определить для коллекции аннотацию <em>@OrderBy</em>. В этой аннотации указывается специальное DQL-выражение, которое будет добавляться ко всем запросам к этой коллекции. Описать <em>@OrderBy</em> для аннотаций <em>@OneToMany</em> или <em>@ManyToMany</em> можно так:</p>
+<div class="codecolorer-container php odiszapc" style="overflow:auto;white-space:nowrap;"><div class="php codecolorer">
+<span class="kw2">&lt;?php</span><br><span class="co4">/** @Entity */</span><br><span class="kw2">class</span> User<br><span class="br0">{</span><br>
+    <span class="co1">// ...</span><br><br>
+    <span class="co4">/**<br>
+     * @ManyToMany(targetEntity="Group")<br>
+     * @OrderBy({"name" = "ASC"})<br>
+     */</span><br>
+    <span class="kw2">private</span> <span class="re0">$groups</span><span class="sy0">;</span><br><span class="br0">}</span>
+</div></div>
+<p>DQL должен состоять только из “чистых” имен полей без кавычек, а также опционального параметра ASC/DESC. Если нужна сортировка по нескольким полям, они разделяются запятой. Имена столбцов в этом выражении должны существовать в классе <em>targetEntity</em>, который описывается в аннотациях <em>@ManyToMany</em> и <em>@OneToMany</em>.</p>
+<p>Семантику использования этой функции можно описать так:</p>
+<ul>
+<li>
+<em>@OrderBy</em> выступает в роли неявного выражения <em>ORDER BY</em>, который будет явно добавляться к запросу при выборке набора.</li>
+<li>Все такие коллекции всегда будут загружаться уже упорядоченными.</li>
+<li>Чтоб сильно не влиять на работу БД этот неявный <em>ORDER BY</em> добавляется к запросу только если коллекция выбирается явно с подсоединением (fetch joined).</li>
+</ul>
+<p>Для вышеприведенного примера следующий DQL-запрос не будет добавлять <em>ORDER BY</em>, потому что сущность <strong>g</strong> здесь не присоединяется к запросу явно:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">JOIN</span> u<span class="sy0">.</span>groups g <span class="kw1">WHERE</span> <span class="kw1">SIZE</span><span class="br0">(</span>g<span class="br0">)</span> <span class="sy0">&gt;</span> <span class="nu0">10</span>
+</div></div>
+<p>Однако следующий пример:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">,</span> g <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">JOIN</span> u<span class="sy0">.</span>groups g <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="sy0">=</span> <span class="nu0">10</span>
+</div></div>
+<p>Будет автоматически переписан в:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">,</span> g <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">JOIN</span> u<span class="sy0">.</span>groups g <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="sy0">=</span> <span class="nu0">10</span> <span class="kw1">ORDER</span> <span class="kw1">BY</span> g<span class="sy0">.</span>name <span class="kw1">ASC</span>
+</div></div>
+<p>И поменять порядок, явно указав его в DQL, нельзя:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">,</span> g <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">JOIN</span> u<span class="sy0">.</span>groups g <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="sy0">=</span> <span class="nu0">10</span> <span class="kw1">ORDER</span> <span class="kw1">BY</span> g<span class="sy0">.</span>name <span class="kw1">DESC</span>
+</div></div>
+<p>Это будет автоматически переписано в:</p>
+<div class="codecolorer-container sql odiszapc" style="overflow:auto;white-space:nowrap;"><div class="sql codecolorer">
+<span class="kw1">SELECT</span> u<span class="sy0">,</span> g <span class="kw1">FROM</span> <span class="kw1">USER</span> u <span class="kw1">JOIN</span> u<span class="sy0">.</span>groups g <span class="kw1">WHERE</span> u<span class="sy0">.</span>id <span class="sy0">=</span> <span class="nu0">10</span> <span class="kw1">ORDER</span> <span class="kw1">BY</span> g<span class="sy0">.</span>name <span class="kw1">DESC</span><span class="sy0">,</span> g<span class="sy0">.</span>name <span class="kw1">ASC</span>
+</div></div>
+<div align="left"><div class="sharexyWidgetNoindexUniqueClassName"><div id="shr_13201185"></div></div></div>
+<div class="yarpp-related yarpp-related-none">
+</div>
+			
+
+<div class="row pager">
+<nav>
+  <ul class="pager">
+    <li class="previous"><a href="{{ "/page/05/" | prepend: site.baseurl }}"><span aria-hidden="true">&larr;</span> Назад</a></li>
+    <li class="next"><a href="{{ "/page/07/" | prepend: site.baseurl }}">Далее <span aria-hidden="true">&rarr;</span></a></li>
+  </ul>
+</nav>
+</div>
